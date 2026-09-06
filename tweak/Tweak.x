@@ -20,6 +20,23 @@
 
 #define SGLog(fmt, ...) NSLog(@"[spotifyglass] " fmt, ##__VA_ARGS__)
 
+// The unified log cuts a message at about 1 KB, so long dumps go out as numbered parts.
+static void SGLogLong(NSString *tag, NSString *text) {
+    NSMutableArray<NSString *> *parts = [NSMutableArray array];
+    NSMutableString *current = [NSMutableString string];
+    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        if (current.length && current.length + line.length > 800) {
+            [parts addObject:[current copy]];
+            [current setString:@""];
+        }
+        [current appendFormat:@"%@\n", line];
+    }
+    if (current.length) [parts addObject:current];
+    [parts enumerateObjectsUsingBlock:^(NSString *part, NSUInteger i, BOOL *stop) {
+        SGLog(@"%@ %lu/%lu\n%@", tag, (unsigned long)i + 1, (unsigned long)parts.count, part);
+    }];
+}
+
 static const CGFloat kCardRadius = 24;
 static const CGFloat kTabPillHeight = 56;
 static const CGFloat kTabSearchSize = 52;
@@ -193,8 +210,9 @@ static void styleNowPlayingBar(UIViewController *container) {
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        SGLog(@"now playing card %@ at %@ (bar %@, container %@)\n%@", card.class, NSStringFromCGRect(frame),
-              NSStringFromCGRect(bar.frame), NSStringFromCGRect(container.view.bounds), [container.view recursiveDescription]);
+        SGLog(@"now playing card %@ at %@ (bar %@, container %@)", card.class, NSStringFromCGRect(frame),
+              NSStringFromCGRect(bar.frame), NSStringFromCGRect(container.view.bounds));
+        SGLogLong(@"now playing hierarchy", [container.view recursiveDescription]);
     });
 }
 
@@ -235,7 +253,8 @@ static void styleTabBar(UIView *tabBar) {
     }]];
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        SGLog(@"tab bar %@ items %lu\n%@", tabBar.class, (unsigned long)outer.count, [tabBar recursiveDescription]);
+        SGLog(@"tab bar %@ items %lu", tabBar.class, (unsigned long)outer.count);
+        SGLogLong(@"tab bar hierarchy", [tabBar recursiveDescription]);
     });
     if (outer.count < 2) return;
 

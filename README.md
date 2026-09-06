@@ -15,5 +15,6 @@ with your own certificate and push it to the iPhone over USB; put `SIGN_P12`, `S
 - `plist/liquid-glass.plist` — merged into Info.plist, turns `UIDesignRequiresCompatibility` off.
 - `deb/` — [AutoFLEX](https://github.com/pwnless/AutoFLEX) release, injected unless `--no-flex`.
 
-Runtime log lines are prefixed `[spotifyglass]`; read them in FLEX → System Log. The first layout
-of each bar logs its full view hierarchy, which is what to paste when the styling misses a view.
+Runtime log lines are prefixed `[spotifyglass]`. With the phone on USB, `./dump-log.sh > out/spotifyglass.log`
+then relaunch Spotify captures them on the Mac; on the phone they are in FLEX → System Log (long-press
+a row to copy it). The first layout of each bar dumps its full view hierarchy in numbered parts.
