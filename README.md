@@ -17,4 +17,6 @@ with your own certificate and push it to the iPhone over USB; put `SIGN_P12`, `S
 
 Runtime log lines are prefixed `[spotifyglass]`. With the phone on USB, `./dump-log.sh > out/spotifyglass.log`
 then relaunch Spotify captures them on the Mac; on the phone they are in FLEX → System Log (long-press
-a row to copy it). The first layout of each bar dumps its full view hierarchy in numbered parts.
+a row to copy it). The first layout of each bar dumps its full view hierarchy in numbered parts, and in a FLEX build every
+time the app goes to the background it dumps the whole visible screen: classes, frames, colours, radii,
+label text and the view controller tree. Open a screen, swipe to the home screen, and the tree is in the log.
