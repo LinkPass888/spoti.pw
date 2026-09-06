@@ -1,6 +1,6 @@
 Package: com.vojta.spotifyglass
 Name: spotifyglass
-Version: 0.3.0
+Version: 0.4.0
 Architecture: iphoneos-arm
 Description: Liquid Glass for the Spotify iOS app
 Maintainer: vojta

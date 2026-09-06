@@ -118,6 +118,24 @@ static UIVisualEffectView *glassFor(UIView *host, const void *key) {
     return glass;
 }
 
+// Several glass panes on one host, addressed by index, all kept behind the host's own content.
+static UIVisualEffectView *glassAt(UIView *host, NSUInteger index) {
+    static char kPanesKey;
+    NSMutableArray<UIVisualEffectView *> *panes = objc_getAssociatedObject(host, &kPanesKey);
+    if (!panes) {
+        panes = [NSMutableArray array];
+        objc_setAssociatedObject(host, &kPanesKey, panes, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    while (panes.count <= index) {
+        UIVisualEffectView *glass = [[UIVisualEffectView alloc] initWithEffect:glassEffect()];
+        glass.userInteractionEnabled = NO;
+        [panes addObject:glass];
+    }
+    UIVisualEffectView *glass = panes[index];
+    if (glass.superview != host) [host insertSubview:glass atIndex:0];
+    return glass;
+}
+
 static void shapeGlass(UIView *glass, CGFloat radius, BOOL capsule) {
     Class config = NSClassFromString(@"UICornerConfiguration");
     Class cornerRadius = NSClassFromString(@"UICornerRadius");
@@ -321,9 +339,19 @@ static void styleTabItem(UIView *item) {
     });
 }
 
+// Items lay out after the bar, so the bar's own pass sees no item frames; restyle from the items too.
+static void styleTabItemAndBar(UIView *item) {
+    styleTabItem(item);
+    Class barClass = NSClassFromString(@"_TtC23NavigationUI_TabBarImpl10TabBarView");
+    for (UIView *v = item.superview; v; v = v.superview) {
+        if ([v isKindOfClass:barClass]) { styleTabBar(v); return; }
+    }
+}
+
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (void)layoutSubviews {
     %orig;
+    for (UIView *sub in ((UIView *)self).subviews) [sub layoutIfNeeded];
     styleTabBar((UIView *)self);
 }
 %end
@@ -331,14 +359,73 @@ static void styleTabItem(UIView *item) {
 %hook _TtC23NavigationUI_TabBarImpl21TabBarItemElementView
 - (void)layoutSubviews {
     %orig;
-    styleTabItem((UIView *)self);
+    styleTabItemAndBar((UIView *)self);
 }
 %end
 
 %hook _TtC25CreateMenu_TabBarItemImpl24CreateMenuTabBarItemView
 - (void)layoutSubviews {
     %orig;
-    styleTabItem((UIView *)self);
+    styleTabItemAndBar((UIView *)self);
+}
+%end
+
+#pragma mark - full screen player (NowPlaying_ModesImpl units: header, playback controls, footer)
+
+// One capsule per direct child of the unit's row, at least `minSize` tall, centred on the child.
+static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize) {
+    UIView *host = unit.viewIfLoaded;
+    __block UIStackView *row = nil;
+    forEachView(host, ^(UIView *v) {
+        if (!row && [v isKindOfClass:UIStackView.class] && v.bounds.size.width > 200 && ((UIStackView *)v).arrangedSubviews.count >= 2) row = (UIStackView *)v;
+    });
+    if (!row) return;
+    NSUInteger index = 0;
+    for (UIView *child in row.arrangedSubviews) {
+        CGRect f = frameIn(child, host);
+        if (child.hidden || f.size.width < 20 || f.size.height < 20) continue;
+        CGFloat height = MAX(minSize, MIN(f.size.height, 48));
+        CGFloat width = MAX(f.size.width, height);
+        CGRect frame = CGRectMake(CGRectGetMidX(f) - width / 2, CGRectGetMidY(f) - height / 2, width, height);
+        UIVisualEffectView *glass = glassAt(host, index++);
+        glass.frame = frame;
+        shapeGlass(glass, height / 2, YES);
+    }
+}
+
+// The whole transport row (shuffle, previous, play, next, repeat) on one capsule.
+static void glassBehindControlsRow(UIViewController *unit) {
+    UIView *host = unit.viewIfLoaded;
+    __block UIView *row = nil;
+    forEachView(host, ^(UIView *v) {
+        if (!row && [v isKindOfClass:UIStackView.class] && v.bounds.size.width > 300) row = v;
+    });
+    if (!row) return;
+    CGRect f = frameIn(row, host);
+    if (f.size.height < 40) return;
+    UIVisualEffectView *glass = glassAt(host, 0);
+    glass.frame = f;
+    shapeGlass(glass, f.size.height / 2, YES);
+}
+
+%hook _TtC20NowPlaying_ModesImpl18HeaderElementsUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    glassBehindRowChildren((UIViewController *)self, 36);
+}
+%end
+
+%hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    glassBehindControlsRow((UIViewController *)self);
+}
+%end
+
+%hook _TtC20NowPlaying_ModesImpl18FooterElementsUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    glassBehindRowChildren((UIViewController *)self, 36);
 }
 %end
 
@@ -454,6 +541,9 @@ static BOOL isDebugBuild(void) {
         @"_TtC18NowPlaying_BarImpl36NowPlayingBarContainerViewController",
         @"_TtC18NowPlaying_BarImpl27NowPlayingBarViewController",
         @"_TtC21NowPlaying_ScrollImpl23NPVScrollViewController",
+        @"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit",
+        @"_TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit",
+        @"_TtC20NowPlaying_ModesImpl18FooterElementsUnit",
     ];
     for (NSString *name in targets) {
         if (!NSClassFromString(name)) SGLog(@"class %@ not found, its hooks are inactive", name);
