@@ -262,16 +262,8 @@ static void styleNowPlayingBar(UIViewController *container) {
 %end
 
 #pragma mark - tab bar (NavigationUI_TabBarImpl.TabBarView: gradient + stack of 4 item elements)
-
-static BOOL isSearchItem(UIView *item) {
-    __block BOOL search = NO;
-    forEachView(item, ^(UIView *v) {
-        if (![v isKindOfClass:UILabel.class]) return;
-        NSString *text = ((UILabel *)v).text.lowercaseString;
-        if ([text isEqualToString:@"search"] || [text hasPrefix:@"hled"]) search = YES;
-    });
-    return search;
-}
+// Spotify maps taps by position, so the items stay in their order: Home, Search, Library in the
+// capsule and Create in its own circle.
 
 static NSArray<UIView *> *tabItems(UIView *tabBar) {
     NSMutableArray<UIView *> *items = [NSMutableArray array];
@@ -285,18 +277,6 @@ static NSArray<UIView *> *tabItems(UIView *tabBar) {
     }]];
 }
 
-// Search goes last so it can sit in its own circle on the right, like the reference.
-static void moveSearchToEnd(NSArray<UIView *> *items) {
-    if (items.count < 3) return;
-    UIView *search = items[1];
-    for (UIView *item in items) if (isSearchItem(item)) search = item;
-    UIStackView *stack = (UIStackView *)search.superview;
-    if (![stack isKindOfClass:UIStackView.class] || stack.arrangedSubviews.lastObject == search) return;
-    [stack removeArrangedSubview:search];
-    [stack addArrangedSubview:search];
-    [stack layoutIfNeeded];
-}
-
 static void styleTabBar(UIView *tabBar) {
     sg_tabBarRoot = tabBar;
     stripBackgrounds(tabBar);
@@ -306,7 +286,6 @@ static void styleTabBar(UIView *tabBar) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"tab bar %@ with %lu items", tabBar.class, (unsigned long)items.count); });
     if (items.count < 2) return;
-    moveSearchToEnd(items);
 
     NSArray<UIView *> *sorted = [items sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
         return [@(frameIn(a, tabBar).origin.x) compare:@(frameIn(b, tabBar).origin.x)];
@@ -372,20 +351,25 @@ static void styleTabItemAndBar(UIView *item) {
 
 #pragma mark - full screen player (NowPlaying_ModesImpl units: header, playback controls, footer)
 
-// One capsule per direct child of the unit's row, at least `minSize` tall, centred on the child.
-static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize) {
+// A glass pane per direct child of the unit's row: circles for square children, capsules for wide
+// ones. `fixedSize` forces every pane to one size; children matching `skip` get none.
+static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFloat fixedSize, NSString *skip) {
     UIView *host = unit.viewIfLoaded;
     __block UIStackView *row = nil;
     forEachView(host, ^(UIView *v) {
         if (!row && [v isKindOfClass:UIStackView.class] && v.bounds.size.width > 200 && ((UIStackView *)v).arrangedSubviews.count >= 2) row = (UIStackView *)v;
     });
     if (!row) return;
+    [row layoutIfNeeded];
     NSUInteger index = 0;
     for (UIView *child in row.arrangedSubviews) {
         CGRect f = frameIn(child, host);
         if (child.hidden || f.size.width < 20 || f.size.height < 20) continue;
-        CGFloat height = MAX(minSize, MIN(f.size.height, 48));
-        CGFloat width = MAX(f.size.width, height);
+        __block BOOL skipped = NO;
+        if (skip) forEachView(child, ^(UIView *v) { if ([NSStringFromClass(v.class) containsString:skip]) skipped = YES; });
+        if (skipped) continue;
+        CGFloat height = fixedSize ?: MAX(minSize, MIN(f.size.height, 48));
+        CGFloat width = fixedSize ?: MAX(f.size.width, height);
         CGRect frame = CGRectMake(CGRectGetMidX(f) - width / 2, CGRectGetMidY(f) - height / 2, width, height);
         UIVisualEffectView *glass = glassAt(host, index++);
         glass.frame = frame;
@@ -393,39 +377,25 @@ static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize) {
     }
 }
 
-// The whole transport row (shuffle, previous, play, next, repeat) on one capsule.
-static void glassBehindControlsRow(UIViewController *unit) {
-    UIView *host = unit.viewIfLoaded;
-    __block UIView *row = nil;
-    forEachView(host, ^(UIView *v) {
-        if (!row && [v isKindOfClass:UIStackView.class] && v.bounds.size.width > 300) row = v;
-    });
-    if (!row) return;
-    CGRect f = frameIn(row, host);
-    if (f.size.height < 40) return;
-    UIVisualEffectView *glass = glassAt(host, 0);
-    glass.frame = f;
-    shapeGlass(glass, f.size.height / 2, YES);
-}
-
 %hook _TtC20NowPlaying_ModesImpl18HeaderElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
-    glassBehindRowChildren((UIViewController *)self, 36);
+    glassBehindRowChildren((UIViewController *)self, 36, 0, nil);
 }
 %end
 
+// Shuffle, previous, next and repeat each get a circle; the white play button stays as it is.
 %hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
-    glassBehindControlsRow((UIViewController *)self);
+    glassBehindRowChildren((UIViewController *)self, 0, 52, @"PlayButton");
 }
 %end
 
 %hook _TtC20NowPlaying_ModesImpl18FooterElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
-    glassBehindRowChildren((UIViewController *)self, 36);
+    glassBehindRowChildren((UIViewController *)self, 36, 0, nil);
 }
 %end
 
