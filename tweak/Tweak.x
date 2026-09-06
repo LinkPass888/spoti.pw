@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <os/log.h>
 
 // iOS 26 API, absent from the SDK Theos builds against. Resolved at runtime.
 @interface UIGlassEffect : UIVisualEffect
@@ -22,14 +23,15 @@
 - (NSString *)_printHierarchy;
 @end
 
-#define SGLog(fmt, ...) NSLog(@"[spotifyglass] " fmt, ##__VA_ARGS__)
+// %{public}s so idevicesyslog on the Mac sees the text instead of <private>.
+#define SGLog(fmt, ...) os_log_with_type(OS_LOG_DEFAULT, OS_LOG_TYPE_DEFAULT, "[spotifyglass] %{public}s", [NSString stringWithFormat:(fmt), ##__VA_ARGS__].UTF8String)
 
 // The unified log cuts a message at about 1 KB, so long dumps go out as numbered parts.
 static void SGLogLong(NSString *tag, NSString *text) {
     NSMutableArray<NSString *> *parts = [NSMutableArray array];
     NSMutableString *current = [NSMutableString string];
     for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
-        if (current.length && current.length + line.length > 800) {
+        if (current.length && [current lengthOfBytesUsingEncoding:NSUTF8StringEncoding] + [line lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > 900) {
             [parts addObject:[current copy]];
             [current setString:@""];
         }
