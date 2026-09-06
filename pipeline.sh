@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Builds the spotifyglass tweak and injects it (plus FLEX) into a decrypted Spotify IPA.
 #
-#   ./pipeline.sh <decrypted.ipa> [-o out.ipa] [--no-flex]
+#   ./pipeline.sh <decrypted.ipa> [-o out.ipa] [--no-flex] [--install]
+#
+# --install hands the result to install.sh (sign with your certificate, push to the plugged-in iPhone).
 #
 # Needs: Theos in $THEOS (default ~/theos) with an iPhoneOS SDK in $THEOS/sdks,
 # gmake, ldid, dpkg-deb (brew) and cyan (uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw").
@@ -11,16 +13,17 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 THEOS="${THEOS:-$HOME/theos}"
 FLEX_DEB="$ROOT/deb/com.hopeless.autoflex_0.0.1_iphoneos-arm.deb"
 
-IN="" OUT="" WITH_FLEX=1
+IN="" OUT="" WITH_FLEX=1 INSTALL=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) OUT="$2"; shift 2 ;;
     --no-flex) WITH_FLEX=0; shift ;;
-    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+    --install) INSTALL=1; shift ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
     *) IN="$1"; shift ;;
   esac
 done
-[ -f "$IN" ] || { echo "usage: $0 <decrypted.ipa> [-o out.ipa] [--no-flex]" >&2; exit 1; }
+[ -f "$IN" ] || { echo "usage: $0 <decrypted.ipa> [-o out.ipa] [--no-flex] [--install]" >&2; exit 1; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing $1 -> $2" >&2; exit 1; }; }
 need gmake "brew install make"
@@ -51,3 +54,5 @@ echo "==> injecting"
 cyan -i "$IN" -o "$OUT" -f "${FILES[@]}" -l "$ROOT/plist/liquid-glass.plist" -s --overwrite
 
 echo "==> done: $OUT"
+[ "$INSTALL" = 1 ] && exec "$ROOT/install.sh" "$OUT"
+exit 0
