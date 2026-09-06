@@ -10,7 +10,7 @@
 
 @interface NSObject (SpotifyGlassIOS26)
 + (id)capsuleConfiguration;
-+ (id)uniformCornersWithRadius:(id)radius;
++ (id)configurationWithUniformRadius:(id)radius;
 + (id)fixedRadius:(CGFloat)radius;
 - (void)setCornerConfiguration:(id)configuration;
 @end
@@ -50,6 +50,8 @@ static const CGFloat kTabSearchSize = 52;
 // Views whose subtree must stay transparent so the glass behind them shows.
 static __weak UIView *sg_nowPlayingRoot;
 static __weak UIView *sg_tabBarRoot;
+// The view Spotify paints with the album colour, refreshed from the layer hook on every repaint.
+static __weak UIView *sg_nowPlayingCard;
 
 static char kNowPlayingGlassKey, kTabPillKey, kTabSearchKey;
 
@@ -81,10 +83,20 @@ static BOOL keepsColor(UIView *view) {
 static void stripBackgrounds(UIView *view) {
     if ([view isKindOfClass:UIVisualEffectView.class]) return;
     if (!keepsColor(view)) view.layer.backgroundColor = NULL;
+    if ([view.layer isKindOfClass:CAGradientLayer.class] || [NSStringFromClass(view.class) containsString:@"GradientView"]) view.hidden = YES;
     for (CALayer *layer in view.layer.sublayers) {
         if ([layer isKindOfClass:CAGradientLayer.class]) layer.hidden = YES;
     }
     for (UIView *sub in view.subviews) stripBackgrounds(sub);
+}
+
+static BOOL isVisibleColor(CGColorRef color) {
+    if (!color || CGColorGetAlpha(color) < 0.05) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    CGFloat brightest = 0;
+    for (size_t i = 0; i + 1 < n; i++) brightest = MAX(brightest, c[i]);
+    return brightest > 0.08;
 }
 
 #pragma mark - glass
@@ -106,17 +118,15 @@ static UIVisualEffectView *glassFor(UIView *host, const void *key) {
     return glass;
 }
 
-// Glass takes its shape from cornerConfiguration on iOS 26; clipping with layer.cornerRadius breaks the rim.
 static void shapeGlass(UIView *glass, CGFloat radius, BOOL capsule) {
-    static BOOL logged;
     Class config = NSClassFromString(@"UICornerConfiguration");
     Class cornerRadius = NSClassFromString(@"UICornerRadius");
     id shape = nil;
     if (config && [glass respondsToSelector:@selector(setCornerConfiguration:)]) {
         if (capsule && [config respondsToSelector:@selector(capsuleConfiguration)]) {
             shape = [config capsuleConfiguration];
-        } else if ([config respondsToSelector:@selector(uniformCornersWithRadius:)] && [cornerRadius respondsToSelector:@selector(fixedRadius:)]) {
-            shape = [config uniformCornersWithRadius:[cornerRadius fixedRadius:radius]];
+        } else if ([config respondsToSelector:@selector(configurationWithUniformRadius:)] && [cornerRadius respondsToSelector:@selector(fixedRadius:)]) {
+            shape = [config configurationWithUniformRadius:[cornerRadius fixedRadius:radius]];
         }
     }
     if (shape) {
@@ -127,26 +137,9 @@ static void shapeGlass(UIView *glass, CGFloat radius, BOOL capsule) {
         glass.layer.cornerCurve = kCACornerCurveContinuous;
         glass.clipsToBounds = YES;
     }
-    if (!logged) {
-        logged = YES;
-        SGLog(@"glass shaping via %@", shape ? @"cornerConfiguration" : @"layer.cornerRadius fallback");
-    }
 }
 
 #pragma mark - now playing bar
-
-// The view Spotify paints with the album colour. Captured before the first strip, then refreshed from the
-// layer hook each time Spotify repaints it, so the glass always follows the real card.
-static __weak UIView *sg_nowPlayingCard;
-
-static BOOL isVisibleColor(CGColorRef color) {
-    if (!color || CGColorGetAlpha(color) < 0.05) return NO;
-    const CGFloat *c = CGColorGetComponents(color);
-    size_t n = CGColorGetNumberOfComponents(color);
-    CGFloat brightest = 0;
-    for (size_t i = 0; i + 1 < n; i++) brightest = MAX(brightest, c[i]);
-    return brightest > 0.08;
-}
 
 static BOOL looksLikeCard(UIView *view, CGColorRef color) {
     CGSize size = view.bounds.size;
@@ -178,6 +171,29 @@ static CGRect contentBounds(UIView *bar, UIView *target) {
     return CGRectIsNull(box) ? box : CGRectInset(box, -10, -8);
 }
 
+// Round artwork (a 40pt square with a small radius, no image view inside) and move the progress
+// line from the card's bottom edge to right under the text, like the reference.
+static void restyleCardContent(UIView *card) {
+    forEachView(card, ^(UIView *v) {
+        CGSize size = v.bounds.size;
+        BOOL square = size.width >= 36 && size.width <= 48 && fabs(size.width - size.height) < 1;
+        if (!square || v.layer.cornerRadius <= 0 || v.layer.cornerRadius >= size.width / 2) return;
+        for (UIView *u = v; u && u != card && CGSizeEqualToSize(u.bounds.size, size); u = u.superview) {
+            u.layer.cornerRadius = size.width / 2;
+            u.clipsToBounds = YES;
+        }
+    });
+    forEachView(card, ^(UIView *v) {
+        CGRect f = v.frame;
+        if (f.size.height > 3 || f.size.width < 200 || v.superview.bounds.size.height < 40) return;
+        CGRect target = CGRectMake(52, card.bounds.size.height - 6, 226, 2);
+        if (CGRectEqualToRect(f, target)) return;
+        v.frame = target;
+        [v setNeedsLayout];
+        [v layoutIfNeeded];
+    });
+}
+
 static void styleNowPlayingBar(UIViewController *container) {
     UIViewController *barVC = container.childViewControllers.firstObject;
     UIView *bar = barVC.viewIfLoaded ?: container.view;
@@ -198,27 +214,17 @@ static void styleNowPlayingBar(UIViewController *container) {
     if (card) {
         card.layer.cornerRadius = radius;
         card.layer.cornerCurve = kCACornerCurveContinuous;
+        restyleCardContent(card);
     }
 
     UIVisualEffectView *glass = glassFor(container.view, &kNowPlayingGlassKey);
     glass.frame = frame;
     shapeGlass(glass, radius, NO);
 
-    forEachView(bar, ^(UIView *v) {
-        if (![v isKindOfClass:UIImageView.class]) return;
-        CGSize size = v.bounds.size;
-        if (size.width < 36 || fabs(size.width - size.height) > 2) return;
-        for (UIView *u = v; u && u != card && CGSizeEqualToSize(u.bounds.size, size); u = u.superview) {
-            u.layer.cornerRadius = size.width / 2;
-            u.clipsToBounds = YES;
-        }
-    });
-
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         SGLog(@"now playing card %@ at %@ (bar %@, container %@)", card.class, NSStringFromCGRect(frame),
               NSStringFromCGRect(bar.frame), NSStringFromCGRect(container.view.bounds));
-        SGLogLong(@"now playing hierarchy", [container.view recursiveDescription]);
     });
 }
 
@@ -237,66 +243,102 @@ static void styleNowPlayingBar(UIViewController *container) {
 }
 %end
 
-#pragma mark - tab bar
+#pragma mark - tab bar (NavigationUI_TabBarImpl.TabBarView: gradient + stack of 4 item elements)
+
+static BOOL isSearchItem(UIView *item) {
+    __block BOOL search = NO;
+    forEachView(item, ^(UIView *v) {
+        if (![v isKindOfClass:UILabel.class]) return;
+        NSString *text = ((UILabel *)v).text.lowercaseString;
+        if ([text isEqualToString:@"search"] || [text hasPrefix:@"hled"]) search = YES;
+    });
+    return search;
+}
+
+static NSArray<UIView *> *tabItems(UIView *tabBar) {
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    forEachView(tabBar, ^(UIView *v) {
+        if (v != tabBar && v.bounds.size.width >= 20 && [NSStringFromClass(v.class) containsString:@"TabBarItemElement"]) [items addObject:v];
+    });
+    // Element wrappers nest; keep the outermost per item.
+    return [items filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(UIView *v, id _) {
+        for (UIView *u = v.superview; u && u != tabBar; u = u.superview) if ([items containsObject:u]) return NO;
+        return YES;
+    }]];
+}
+
+// Search goes last so it can sit in its own circle on the right, like the reference.
+static void moveSearchToEnd(NSArray<UIView *> *items) {
+    if (items.count < 3) return;
+    UIView *search = items[1];
+    for (UIView *item in items) if (isSearchItem(item)) search = item;
+    UIStackView *stack = (UIStackView *)search.superview;
+    if (![stack isKindOfClass:UIStackView.class] || stack.arrangedSubviews.lastObject == search) return;
+    [stack removeArrangedSubview:search];
+    [stack addArrangedSubview:search];
+    [stack layoutIfNeeded];
+}
 
 static void styleTabBar(UIView *tabBar) {
     sg_tabBarRoot = tabBar;
     stripBackgrounds(tabBar);
     tabBar.superview.layer.backgroundColor = NULL;
 
-    NSMutableArray<UIView *> *items = [NSMutableArray array];
-    forEachView(tabBar, ^(UIView *v) {
-        if ([v isKindOfClass:UILabel.class]) { v.alpha = 0; return; }
-        if (v != tabBar && v.bounds.size.height <= 1 && v.bounds.size.width > 100) { v.hidden = YES; return; }
-        NSString *name = NSStringFromClass(v.class);
-        if (v == tabBar || v.bounds.size.width < 20) return;
-        if ([name containsString:@"TabBarItem"] || [name containsString:@"TabBarElement"]) [items addObject:v];
-    });
-    // Nested matches (an item wrapping an item) count once, keep the outermost.
-    NSArray<UIView *> *outer = [items filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(UIView *v, id _) {
-        for (UIView *u = v.superview; u && u != tabBar; u = u.superview) if ([items containsObject:u]) return NO;
-        return YES;
-    }]];
+    NSArray<UIView *> *items = tabItems(tabBar);
     static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        SGLog(@"tab bar %@ items %lu", tabBar.class, (unsigned long)outer.count);
-        SGLogLong(@"tab bar hierarchy", [tabBar recursiveDescription]);
-    });
-    if (outer.count < 2) return;
+    dispatch_once(&once, ^{ SGLog(@"tab bar %@ with %lu items", tabBar.class, (unsigned long)items.count); });
+    if (items.count < 2) return;
+    moveSearchToEnd(items);
 
-    NSArray<UIView *> *sorted = [outer sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+    NSArray<UIView *> *sorted = [items sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
         return [@(frameIn(a, tabBar).origin.x) compare:@(frameIn(b, tabBar).origin.x)];
     }];
     CGRect first = frameIn(sorted.firstObject, tabBar);
     CGRect lastMain = frameIn(sorted[sorted.count - 2], tabBar);
-    CGRect search = frameIn(sorted.lastObject, tabBar);
-    CGFloat midY = first.size.height <= 60 ? CGRectGetMidY(first) : first.origin.y + 27;
+    CGRect last = frameIn(sorted.lastObject, tabBar);
+    CGFloat midY = CGRectGetMidY(first);
 
     UIVisualEffectView *pill = glassFor(tabBar, &kTabPillKey);
-    CGFloat left = MAX(12, first.origin.x - 8);
-    pill.frame = CGRectMake(left, midY - kTabPillHeight / 2, CGRectGetMaxX(lastMain) + 8 - left, kTabPillHeight);
+    CGFloat left = MAX(12, first.origin.x + 12);
+    pill.frame = CGRectMake(left, midY - kTabPillHeight / 2, CGRectGetMaxX(lastMain) + 4 - left, kTabPillHeight);
     shapeGlass(pill, kTabPillHeight / 2, YES);
 
     UIVisualEffectView *circle = glassFor(tabBar, &kTabSearchKey);
-    circle.frame = CGRectMake(CGRectGetMidX(search) - kTabSearchSize / 2, midY - kTabSearchSize / 2, kTabSearchSize, kTabSearchSize);
+    circle.frame = CGRectMake(CGRectGetMidX(last) - kTabSearchSize / 2, midY - kTabSearchSize / 2, kTabSearchSize, kTabSearchSize);
     shapeGlass(circle, kTabSearchSize / 2, YES);
-
-    for (UIView *item in sorted) {
-        [item layoutIfNeeded];
-        __block UIImageView *icon = nil;
-        forEachView(item, ^(UIView *v) {
-            if ([v isKindOfClass:UIImageView.class] && v.bounds.size.width > icon.bounds.size.width) icon = (UIImageView *)v;
-        });
-        if (!icon) continue;
-        CGPoint target = [tabBar convertPoint:CGPointMake(0, midY) toView:icon.superview];
-        icon.center = CGPointMake(icon.center.x, target.y);
-    }
 }
 
-%hook SPTTabBar
+// Items lay out their own icon and label; hide the label and centre the icon after each pass.
+static void styleTabItem(UIView *item) {
+    CGFloat midY = CGRectGetMidY(item.bounds);
+    forEachView(item, ^(UIView *v) {
+        if ([v isKindOfClass:UILabel.class]) {
+            v.alpha = 0;
+        } else if ([NSStringFromClass(v.class) containsString:@"IconView"]) {
+            CGPoint target = [item convertPoint:CGPointMake(0, midY) toView:v.superview];
+            v.center = CGPointMake(v.center.x, target.y);
+        }
+    });
+}
+
+%hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (void)layoutSubviews {
     %orig;
     styleTabBar((UIView *)self);
+}
+%end
+
+%hook _TtC23NavigationUI_TabBarImpl21TabBarItemElementView
+- (void)layoutSubviews {
+    %orig;
+    styleTabItem((UIView *)self);
+}
+%end
+
+%hook _TtC25CreateMenu_TabBarItemImpl24CreateMenuTabBarItemView
+- (void)layoutSubviews {
+    %orig;
+    styleTabItem((UIView *)self);
 }
 %end
 
@@ -381,37 +423,43 @@ static void dumpScreen(NSString *reason) {
     SGLogLong([@"screen dump " stringByAppendingString:reason], out);
 }
 
-#pragma mark - diagnostics
-
-static void logClassMethods(NSString *name) {
-    Class cls = NSClassFromString(name);
-    if (!cls) { SGLog(@"%@ missing", name); return; }
-    unsigned count = 0;
-    Method *methods = class_copyMethodList(object_getClass(cls), &count);
-    NSMutableArray *names = [NSMutableArray array];
-    for (unsigned i = 0; i < count; i++) [names addObject:NSStringFromSelector(method_getName(methods[i]))];
-    free(methods);
-    SGLog(@"%@ class methods: %@", name, [names componentsJoinedByString:@" "]);
+static BOOL isDebugBuild(void) {
+    return NSClassFromString(@"FLEXManager") != nil;
 }
+
+// Full screen player: dump its tree once it has appeared, so no background trick is needed.
+%hook _TtC21NowPlaying_ScrollImpl23NPVScrollViewController
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    if (!isDebugBuild()) return;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            dumpScreen(@"now playing view");
+        });
+    });
+}
+%end
+
+#pragma mark - diagnostics
 
 %ctor {
     %init;
     NSArray *targets = @[
         @"_TtC33Reprise_LiquidGlassPropertiesImpl25LiquidGlassPropertiesImpl",
         @"SPTHubViewController",
-        @"SPTTabBar",
+        @"_TtC23NavigationUI_TabBarImpl10TabBarView",
+        @"_TtC23NavigationUI_TabBarImpl21TabBarItemElementView",
+        @"_TtC25CreateMenu_TabBarItemImpl24CreateMenuTabBarItemView",
         @"_TtC18NowPlaying_BarImpl36NowPlayingBarContainerViewController",
         @"_TtC18NowPlaying_BarImpl27NowPlayingBarViewController",
+        @"_TtC21NowPlaying_ScrollImpl23NPVScrollViewController",
     ];
     for (NSString *name in targets) {
-        Class cls = NSClassFromString(name);
-        if (!cls) SGLog(@"class %@ not found, its hooks are inactive", name);
-        else if ([name isEqualToString:@"SPTTabBar"] && ![cls isSubclassOfClass:UIView.class]) SGLog(@"SPTTabBar is not a UIView (%@), tab bar hook inactive", class_getSuperclass(cls));
+        if (!NSClassFromString(name)) SGLog(@"class %@ not found, its hooks are inactive", name);
     }
     SGLog(@"loaded, UIGlassEffect %@", NSClassFromString(@"UIGlassEffect") ? @"available" : @"missing");
-    logClassMethods(@"UICornerConfiguration");
-    logClassMethods(@"UICornerRadius");
-    if (NSClassFromString(@"FLEXManager")) {
+    if (isDebugBuild()) {
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:nil usingBlock:^(NSNotification *note) {
             dumpScreen(@"on background");
         }];
