@@ -121,37 +121,70 @@ static void shapeGlass(UIView *glass, CGFloat radius, BOOL capsule) {
 
 #pragma mark - now playing bar
 
+// The view Spotify paints with the album colour. Captured before the first strip, then refreshed from the
+// layer hook each time Spotify repaints it, so the glass always follows the real card.
+static __weak UIView *sg_nowPlayingCard;
+
+static BOOL isVisibleColor(CGColorRef color) {
+    if (!color || CGColorGetAlpha(color) < 0.05) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    CGFloat brightest = 0;
+    for (size_t i = 0; i + 1 < n; i++) brightest = MAX(brightest, c[i]);
+    return brightest > 0.08;
+}
+
+static BOOL looksLikeCard(UIView *view, CGColorRef color) {
+    CGSize size = view.bounds.size;
+    return size.height >= 40 && size.height <= 140 && size.width >= 200 && isVisibleColor(color);
+}
+
+static UIView *detectColoredCard(UIView *bar) {
+    __block UIView *best = nil;
+    __block CGFloat bestArea = 0;
+    forEachView(bar, ^(UIView *v) {
+        if ([v isKindOfClass:UIVisualEffectView.class] || keepsColor(v) || !looksLikeCard(v, v.layer.backgroundColor)) return;
+        CGFloat area = v.bounds.size.width * v.bounds.size.height;
+        if (area > bestArea) { bestArea = area; best = v; }
+    });
+    return best;
+}
+
+// Fallback when nothing is painted: the box around artwork, text and the small buttons.
+static CGRect contentBounds(UIView *bar, UIView *target) {
+    __block CGRect box = CGRectNull;
+    forEachView(bar, ^(UIView *v) {
+        if (v.hidden || v.alpha == 0) return;
+        CGFloat width = v.bounds.size.width;
+        BOOL content = ([v isKindOfClass:UIImageView.class] && width >= 20 && width <= 120)
+            || [v isKindOfClass:UILabel.class]
+            || ([v isKindOfClass:UIControl.class] && width <= 100);
+        if (content) box = CGRectUnion(box, frameIn(v, target));
+    });
+    return CGRectIsNull(box) ? box : CGRectInset(box, -10, -8);
+}
+
 static void styleNowPlayingBar(UIViewController *container) {
     UIViewController *barVC = container.childViewControllers.firstObject;
     UIView *bar = barVC.viewIfLoaded ?: container.view;
     sg_nowPlayingRoot = bar;
+
+    UIView *card = sg_nowPlayingCard;
+    if (!card || !isInside(card, bar)) card = sg_nowPlayingCard = detectColoredCard(bar);
+
     container.view.layer.backgroundColor = NULL;
     stripBackgrounds(bar);
 
-    UIView *card = findView(bar, ^BOOL(UIView *v) {
-        return [NSStringFromClass(v.class) containsString:@"NowPlayingBarTopStack"];
-    });
-    if (!card) {
-        CGFloat width = bar.bounds.size.width;
-        __block UIView *best = nil;
-        __block CGFloat bestArea = 0;
-        forEachView(bar, ^(UIView *v) {
-            if (v == bar) return;
-            CGRect f = frameIn(v, bar);
-            if (f.size.height < 40 || f.size.width < width * 0.6 || f.size.width > width - 4) return;
-            CGFloat area = f.size.width * f.size.height;
-            if (area > bestArea) { bestArea = area; best = v; }
-        });
-        card = best ?: bar;
-    }
-
-    CGRect frame = card == container.view ? card.bounds : frameIn(card, container.view);
-    if (card == bar || card == container.view) frame = CGRectInset(frame, 16, 0);
+    CGRect frame = card ? frameIn(card, container.view) : contentBounds(bar, container.view);
+    if (CGRectIsNull(frame)) return;
+    frame.size.height = MIN(frame.size.height, 80);
     if (frame.size.height < 30 || frame.size.width < 100) return;
 
     CGFloat radius = MIN(kCardRadius, frame.size.height / 2);
-    card.layer.cornerRadius = radius;
-    card.layer.cornerCurve = kCACornerCurveContinuous;
+    if (card) {
+        card.layer.cornerRadius = radius;
+        card.layer.cornerCurve = kCACornerCurveContinuous;
+    }
 
     UIVisualEffectView *glass = glassFor(container.view, &kNowPlayingGlassKey);
     glass.frame = frame;
@@ -169,7 +202,8 @@ static void styleNowPlayingBar(UIViewController *container) {
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        SGLog(@"now playing card %@ at %@\n%@", card.class, NSStringFromCGRect(frame), [container.view recursiveDescription]);
+        SGLog(@"now playing card %@ at %@ (bar %@, container %@)\n%@", card.class, NSStringFromCGRect(frame),
+              NSStringFromCGRect(bar.frame), NSStringFromCGRect(container.view.bounds), [container.view recursiveDescription]);
     });
 }
 
@@ -256,9 +290,17 @@ static void styleTabBar(UIView *tabBar) {
 - (void)setBackgroundColor:(CGColorRef)color {
     if (color && (sg_nowPlayingRoot || sg_tabBarRoot)) {
         UIView *view = (UIView *)self.delegate;
-        if ([view isKindOfClass:UIView.class] && view.layer == self && !keepsColor(view)
-            && (isInside(view, sg_nowPlayingRoot) || isInside(view, sg_tabBarRoot))) {
-            color = NULL;
+        if ([view isKindOfClass:UIView.class] && view.layer == self && !keepsColor(view)) {
+            if (isInside(view, sg_nowPlayingRoot)) {
+                if (looksLikeCard(view, color) && sg_nowPlayingCard != view) {
+                    sg_nowPlayingCard = view;
+                    UIView *bar = sg_nowPlayingRoot;
+                    dispatch_async(dispatch_get_main_queue(), ^{ [bar.superview setNeedsLayout]; });
+                }
+                color = NULL;
+            } else if (isInside(view, sg_tabBarRoot)) {
+                color = NULL;
+            }
         }
     }
     %orig(color);
