@@ -7,9 +7,11 @@ Liquid Glass for the Spotify iOS app, applied to a decrypted IPA without a jailb
 
 The result lands in `out/` fakesigned, ready for TrollStore. Sideloadly re-signs it.
 
-- `tweak/` — Theos tweak. Flips Spotify's own Liquid Glass flags (`Reprise_LiquidGlassKit`) and
-  replaces the now playing bar background with a `UIGlassEffect` pane.
+- `tweak/` — Theos tweak. Flips Spotify's own Liquid Glass flags (`Reprise_LiquidGlassKit`),
+  turns the now playing bar into a glass card with round artwork, and turns the tab bar into a
+  glass capsule plus a separate glass search circle. Spotify's own controls stay in place.
 - `plist/liquid-glass.plist` — merged into Info.plist, turns `UIDesignRequiresCompatibility` off.
 - `deb/` — [AutoFLEX](https://github.com/pwnless/AutoFLEX) release, injected unless `--no-flex`.
 
-Runtime log lines are prefixed `[spotifyglass]`; read them in FLEX → System Log.
+Runtime log lines are prefixed `[spotifyglass]`; read them in FLEX → System Log. The first layout
+of each bar logs its full view hierarchy, which is what to paste when the styling misses a view.

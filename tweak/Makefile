@@ -8,7 +8,7 @@ TWEAK_NAME := spotifyglass
 
 spotifyglass_FILES := Tweak.x
 spotifyglass_CFLAGS := -fobjc-arc
-spotifyglass_FRAMEWORKS := UIKit
+spotifyglass_FRAMEWORKS := UIKit QuartzCore
 # Runtime swizzling instead of Substrate so the dylib has no extra dependency inside the IPA.
 spotifyglass_LOGOS_DEFAULT_GENERATOR := internal
 
