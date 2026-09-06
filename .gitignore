@@ -1,0 +1,6 @@
+*.ipa
+out/
+tweak/.theos/
+tweak/obj/
+tweak/packages/
+.DS_Store
