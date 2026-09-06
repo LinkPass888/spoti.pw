@@ -399,6 +399,46 @@ static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFl
 }
 %end
 
+#pragma mark - search field (a wide, white Encore tertiary button on the Search page)
+
+static char kSearchFieldKey;
+
+static BOOL isLightColor(CGColorRef color) {
+    if (!color || CGColorGetAlpha(color) < 0.5) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    for (size_t i = 0; i + 1 < n; i++) if (c[i] < 0.85) return NO;
+    return YES;
+}
+
+static void styleSearchField(UIView *button) {
+    CGSize size = button.bounds.size;
+    if (size.width < 200 || size.height < 40 || size.height > 60) return;
+    BOOL styled = [objc_getAssociatedObject(button, &kSearchFieldKey) boolValue];
+    if (!styled && !isLightColor(button.layer.backgroundColor)) return;
+    objc_setAssociatedObject(button, &kSearchFieldKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    button.layer.backgroundColor = NULL;
+    button.layer.cornerRadius = size.height / 2;
+    button.layer.cornerCurve = kCACornerCurveContinuous;
+
+    UIVisualEffectView *glass = glassAt(button, 0);
+    glass.frame = button.bounds;
+    shapeGlass(glass, size.height / 2, YES);
+
+    forEachView(button, ^(UIView *v) {
+        if ([v isKindOfClass:UILabel.class]) ((UILabel *)v).textColor = UIColor.whiteColor;
+        else if ([NSStringFromClass(v.class) containsString:@"IconView"]) v.tintColor = UIColor.whiteColor;
+    });
+}
+
+%hook _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary
+- (void)layoutSubviews {
+    %orig;
+    styleSearchField((UIView *)self);
+}
+%end
+
 #pragma mark - keep the stripped areas transparent when Spotify repaints them
 
 %hook CALayer
@@ -514,6 +554,7 @@ static BOOL isDebugBuild(void) {
         @"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit",
         @"_TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit",
         @"_TtC20NowPlaying_ModesImpl18FooterElementsUnit",
+        @"_TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary",
     ];
     for (NSString *name in targets) {
         if (!NSClassFromString(name)) SGLog(@"class %@ not found, its hooks are inactive", name);
