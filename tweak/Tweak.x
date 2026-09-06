@@ -32,15 +32,6 @@ static char kNowPlayingGlassKey, kTabPillKey, kTabSearchKey;
 
 #pragma mark - helpers
 
-static UIView *findView(UIView *view, BOOL (^match)(UIView *)) {
-    if (match(view)) return view;
-    for (UIView *sub in view.subviews) {
-        UIView *found = findView(sub, match);
-        if (found) return found;
-    }
-    return nil;
-}
-
 static void forEachView(UIView *view, void (^fn)(UIView *)) {
     fn(view);
     for (UIView *sub in view.subviews) forEachView(sub, fn);
