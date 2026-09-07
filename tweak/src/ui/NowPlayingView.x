@@ -9,6 +9,7 @@
 // A pane per direct child of the unit's row: circles for square children, capsules for wide ones.
 // `fixedSize` forces every pane to one size; children containing a `skip` class get none.
 static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFloat fixedSize, NSString *skip) {
+    if (!SGEnabled(SGKeyPlayer)) return;
     UIView *host = unit.viewIfLoaded;
     __block UIStackView *row = nil;
     SGForEachView(host, ^(UIView *v) {

@@ -55,6 +55,7 @@ static void restyleCardContent(UIView *card) {
 }
 
 static void styleNowPlayingBar(UIViewController *container) {
+    if (!SGEnabled(SGKeyNowPlayingBar)) return;
     UIViewController *barVC = container.childViewControllers.firstObject;
     UIView *bar = barVC.viewIfLoaded ?: container.view;
     sg_nowPlayingRoot = bar;

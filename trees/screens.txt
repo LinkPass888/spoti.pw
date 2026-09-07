@@ -19,3 +19,5 @@ artist 3 more scrolled | open any artist page
 queue | open the queue from the player
 lyrics | open the lyrics from the player
 settings | avatar → settings
+settings notifications opened | avatar → settings
+

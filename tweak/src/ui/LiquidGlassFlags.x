@@ -3,11 +3,15 @@
 #import "SGCommon.h"
 
 %hook _TtC33Reprise_LiquidGlassPropertiesImpl25LiquidGlassPropertiesImpl
-- (BOOL)isContextMenuInNavigationBarEnabled { return YES; }
+- (BOOL)isContextMenuInNavigationBarEnabled {
+    return SGEnabled(SGKeySpotifyGlass) ? YES : %orig;
+}
 %end
 
 %hook SPTHubViewController
-- (BOOL)prefersLiquidGlassNavigationBar { return YES; }
+- (BOOL)prefersLiquidGlassNavigationBar {
+    return SGEnabled(SGKeySpotifyGlass) ? YES : %orig;
+}
 %end
 
 %ctor {

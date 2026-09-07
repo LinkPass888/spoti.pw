@@ -29,6 +29,24 @@ void SGRequireClasses(NSArray<NSString *> *names) {
     }
 }
 
+#pragma mark - switches
+
+NSString *const SGKeyNowPlayingBar = @"spotifyglass.nowPlayingBar";
+NSString *const SGKeyTabBar = @"spotifyglass.tabBar";
+NSString *const SGKeyPlayer = @"spotifyglass.player";
+NSString *const SGKeySearchField = @"spotifyglass.searchField";
+NSString *const SGKeySpotifyGlass = @"spotifyglass.spotifyGlass";
+NSString *const SGKeyAmoled = @"spotifyglass.amoled";
+
+BOOL SGEnabled(NSString *key) {
+    id value = [NSUserDefaults.standardUserDefaults objectForKey:key];
+    return value ? [value boolValue] : YES;
+}
+
+void SGSetEnabled(NSString *key, BOOL on) {
+    [NSUserDefaults.standardUserDefaults setBool:on forKey:key];
+}
+
 #pragma mark - view tree
 
 void SGForEachView(UIView *view, void (^fn)(UIView *)) {

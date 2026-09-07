@@ -49,6 +49,16 @@ extern __weak UIView *sg_tabBarRoot;
 extern __weak UIView *sg_nowPlayingCard;
 BOOL SGLooksLikeCard(UIView *view, CGColorRef color);
 
+// Switches from ui/Settings.x, one per tweak; an unset switch is on.
+extern NSString *const SGKeyNowPlayingBar;
+extern NSString *const SGKeyTabBar;
+extern NSString *const SGKeyPlayer;
+extern NSString *const SGKeySearchField;
+extern NSString *const SGKeySpotifyGlass;
+extern NSString *const SGKeyAmoled;
+BOOL SGEnabled(NSString *key);
+void SGSetEnabled(NSString *key, BOOL on);
+
 // Diagnostics (SGDiagnostics.x)
 BOOL SGIsDebugBuild(void);
 NSString *SGScreenTree(void);

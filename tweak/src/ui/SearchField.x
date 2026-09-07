@@ -8,6 +8,7 @@
 static char kStyledKey;
 
 static void styleSearchField(UIView *button) {
+    if (!SGEnabled(SGKeySearchField)) return;
     CGSize size = button.bounds.size;
     if (size.width < 200 || size.height < 40 || size.height > 60) return;
     BOOL styled = [objc_getAssociatedObject(button, &kStyledKey) boolValue];
