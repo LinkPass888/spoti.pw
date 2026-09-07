@@ -1,7 +1,12 @@
 !trees/screens.txt
 *.ipa
+*.mobileprovision
+*.p12
 .DS_Store
 .signing.env
+Developer/
+Distribution/
+Password*.txt
 __pycache__/
 out/
 trees/*.txt

@@ -12,6 +12,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 THEOS="${THEOS:-$HOME/theos}"
 FLEX_DEB="$ROOT/vendor/com.hopeless.autoflex_0.0.1_iphoneos-arm.deb"
+# Installs next to the real Spotify instead of replacing it. Override: BUNDLE_ID=com.spotify.client make build
+BUNDLE_ID="${BUNDLE_ID:-com.spotify.client2}"
 
 IN="" OUT="" WITH_FLEX=1 INSTALL=0
 while [ $# -gt 0 ]; do
@@ -51,7 +53,8 @@ FILES=("$TWEAK_DEB")
 [ "$WITH_FLEX" = 1 ] && FILES+=("$FLEX_DEB")
 
 echo "==> injecting"
-cyan -i "$IN" -o "$OUT" -f "${FILES[@]}" -l "$ROOT/plist/liquid-glass.plist" -s --overwrite
+# -w drops the Watch app: its companion-app key would still name com.spotify.client and block the install.
+cyan -i "$IN" -o "$OUT" -f "${FILES[@]}" -l "$ROOT/plist/liquid-glass.plist" -b "$BUNDLE_ID" -w -s --overwrite
 
 echo "==> done: $OUT"
 [ "$INSTALL" = 1 ] && exec "$ROOT/scripts/install.sh" "$OUT"

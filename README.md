@@ -25,7 +25,8 @@ signed and installed from the Mac.
 
 Needs Theos in `~/theos` with an iPhoneOS SDK, Homebrew `make ldid dpkg zsign ideviceinstaller
 libimobiledevice`, and cyan (`uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"`).
-Signing reads `SIGN_P12`, `SIGN_PROFILE` and `SIGN_P12_PASSWORD` from `.signing.env`.
+Signing reads `SIGN_P12`, `SIGN_PROFILE` and `SIGN_P12_PASSWORD` from `.signing.env`. The app is
+re-identified as `com.spotify.client2` so it installs next to the real Spotify (`BUNDLE_ID=` overrides).
 
 ## Adding a tweak
 
