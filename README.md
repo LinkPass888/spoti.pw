@@ -7,8 +7,8 @@ signed and installed from the Mac.
 
 ## Layout
 
-    tweak/src/ui/*.x   the tweaks: NowPlayingBar, TabBar, Navbar, NowPlayingView, Lyrics, SearchField, Flags, Amoled, HomeGradient, Declutter, Repaint, Settings
-    tweak/src/SG*      shared helpers (glass panes, view walking, logging, screen dumps); SGFlagList.m is generated
+    tweak/src/ui/*.x   the tweaks: NowPlayingBar, TabBar, Navbar, NowPlayingView, Lyrics, SearchField, Flags, Amoled, HomeGradient, Declutter, Playlist, Repaint, Settings
+    tweak/src/SG*      shared helpers (glass panes, view walking, logging, screen dumps) and SGPrivacy, the telemetry blocking; SGFlagList.m is generated
     scripts/           pipeline.sh (build + inject), install.sh (sign + install), record-trees.py, dump-log.sh, extract-flags.py
     trees/             recorded view trees, one per screen; the input for every new tweak
     plist/             Info.plist overrides merged into the app (turns UIDesignRequiresCompatibility off)
@@ -24,12 +24,14 @@ signed and installed from the Mac.
     make log        # stream [spotifyglass] log lines from the phone
     make flags      # regenerate the flag table in tweak/src/SGFlagList.m from the IPA
 
-In the app, Settings → Mod Settings has three pages of switches, UI Tweaks (tab bar, search
-field, Spotify's own glass, AMOLED), Home (a gradient background, hide sections of the Home tab)
-and Now Playing (glass, a few of Spotify's player flags, hide buttons and cards of the full
-screen player), plus Navbar, the tab bar's own composition, and All flags, Spotify's
-remote-config flags with a search field and an Auto / Off / On control per flag (a text field for
-the number and text ones); a change shows after Spotify restarts.
+In the app, Settings → Mod Settings has four pages of switches, UI Tweaks (tab bar, search
+field, Spotify's own glass, AMOLED), Home (a gradient background, hide sections of the Home tab),
+Playlist (hide the cover, the header's text and buttons, the curation pills) and Now Playing
+(glass, a few of Spotify's player flags, hide buttons and cards of the full screen player), plus
+Privacy, telemetry blocking with a count of what it has stopped, Navbar, the tab bar's own
+composition, and All flags, Spotify's remote-config flags with a search field and an Auto / Off /
+On control per flag (a text field for the number and text ones); a change shows after Spotify
+restarts.
 
 Navbar is the exception and applies as soon as the bar lays out again. It lists the tabs in the
 order the bar shows them: drag to reorder, tap to hide or show, and Add a tab puts a page of

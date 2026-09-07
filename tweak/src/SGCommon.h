@@ -75,6 +75,7 @@ extern NSString *const SGKeySearchField;
 extern NSString *const SGKeySpotifyGlass;
 extern NSString *const SGKeyAmoled;
 extern NSString *const SGKeyHomeGradient;  // off unless it is asked for
+extern NSString *const SGKeyBlockTelemetry;
 BOOL SGFlag(NSString *key, BOOL fallback);
 BOOL SGEnabled(NSString *key);
 void SGSetEnabled(NSString *key, BOOL on);
@@ -134,6 +135,25 @@ void SGSetFlagOverride(NSString *key, id value);
 #define SGHideHomePreviews @"spotifyglass.hide.homePreviews"
 #define SGHideHomeDJ @"spotifyglass.hide.homeDJ"
 BOOL SGHidden(NSString *key);
+
+// Playlist switches from ui/Settings.x, read by ui/Playlist.x; an unset switch is off.
+#define SGHidePlaylistArtwork @"spotifyglass.hide.playlistArtwork"
+#define SGHidePlaylistDescription @"spotifyglass.hide.playlistDescription"
+#define SGHidePlaylistCreator @"spotifyglass.hide.playlistCreator"
+#define SGHidePlaylistLength @"spotifyglass.hide.playlistLength"
+#define SGHidePlaylistVideo @"spotifyglass.hide.playlistVideo"
+#define SGHidePlaylistAddTo @"spotifyglass.hide.playlistAddTo"
+#define SGHidePlaylistDownload @"spotifyglass.hide.playlistDownload"
+#define SGHidePlaylistShare @"spotifyglass.hide.playlistShare"
+#define SGHidePlaylistMore @"spotifyglass.hide.playlistMore"
+#define SGHidePlaylistPills @"spotifyglass.hide.playlistPills"
+#define SGHidePlaylistFind @"spotifyglass.hide.playlistFind"
+
+// Telemetry blocking (SGPrivacy.x): the destinations it knows in the order it lists them, how many
+// requests to one of them it has answered instead of letting out (nil label for all of them).
+NSArray<NSString *> *SGBlockedLabels(void);
+NSUInteger SGBlockedCount(NSString *label);
+void SGResetBlocked(void);
 
 // Diagnostics (SGDiagnostics.x)
 BOOL SGIsDebugBuild(void);

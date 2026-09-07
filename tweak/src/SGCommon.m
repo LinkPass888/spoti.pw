@@ -57,6 +57,7 @@ NSString *const SGKeySearchField = @"spotifyglass.searchField";
 NSString *const SGKeySpotifyGlass = @"spotifyglass.spotifyGlass";
 NSString *const SGKeyAmoled = @"spotifyglass.amoled";
 NSString *const SGKeyHomeGradient = @"spotifyglass.homeGradient";
+NSString *const SGKeyBlockTelemetry = @"spotifyglass.blockTelemetry";
 
 BOOL SGFlag(NSString *key, BOOL fallback) {
     id value = [NSUserDefaults.standardUserDefaults objectForKey:key];

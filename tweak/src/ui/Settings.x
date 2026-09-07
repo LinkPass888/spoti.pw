@@ -1,5 +1,5 @@
 // Settings: a Mod Settings row at the end of Spotify's settings list opens the mod's own pages:
-// UI Tweaks, Home and Now Playing, each sections of switches (the mod's own and a few of
+// UI Tweaks, Home, Playlist and Now Playing, each sections of switches (the mod's own and a few of
 // Spotify's remote-config flags), Navbar, the tab bar's own composition, and All flags, a
 // searchable list of every flag with an override per flag. The tweaks read the switches when they
 // run, so a change shows after Spotify restarts; the Navbar page is the exception and applies as
@@ -109,7 +109,9 @@ static BOOL sg_pagesConform;
 @end
 
 // A row is a switch when it has a key and a link to another page when it has a page. A flag row
-// switches one of Spotify's remote-config flags: on forces it, off leaves Spotify's value.
+// switches one of Spotify's remote-config flags: on forces it, off leaves Spotify's value. A row
+// with a value reads one out on the right and is asked again while the page is open; a row with an
+// action runs it when tapped.
 @interface SGModRow : NSObject
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *subtitle;
@@ -117,6 +119,8 @@ static BOOL sg_pagesConform;
 @property (nonatomic) BOOL defaultOn;
 @property (nonatomic) BOOL flag;
 @property (nonatomic, copy) UIViewController *(^page)(void);
+@property (nonatomic, copy) NSString *(^value)(void);
+@property (nonatomic, copy) void (^action)(void);
 @end
 
 @implementation SGModRow
@@ -155,6 +159,21 @@ static SGModRow *optionRow(NSString *title, NSString *subtitle, NSString *key) {
 static SGModRow *flagRow(NSString *title, NSString *key) {
     SGModRow *row = hideRow(title, [key substringFromIndex:[key rangeOfString:@"."].location + 1], key);
     row.flag = YES;
+    return row;
+}
+
+static SGModRow *statRow(NSString *title, NSString *(^value)(void)) {
+    SGModRow *row = [SGModRow new];
+    row.title = title;
+    row.value = value;
+    return row;
+}
+
+static SGModRow *actionRow(NSString *title, NSString *subtitle, void (^action)(void)) {
+    SGModRow *row = [SGModRow new];
+    row.title = title;
+    row.subtitle = subtitle;
+    row.action = action;
     return row;
 }
 
@@ -223,6 +242,8 @@ static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
     NSArray<SGModSection *> *_sections;
     UIView *_intro;
     UIView *_footer;
+    NSTimer *_ticker;
+    BOOL _live;
 }
 
 - (instancetype)initWithTitle:(NSString *)title intro:(NSString *)intro sections:(NSArray<SGModSection *> *)sections footer:(NSString *)footer {
@@ -231,6 +252,7 @@ static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
     _sections = sections;
     _intro = intro ? note(intro) : nil;
     _footer = footer ? note(footer) : nil;
+    for (SGModSection *s in sections) for (SGModRow *row in s.rows) _live |= row.value != nil;
     return self;
 }
 
@@ -253,6 +275,32 @@ static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     insetForBars(self.tableView);
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    if (!_live) return;
+    [self.tableView reloadData];
+    // The counters climb while the page is open; the labels are written straight into the cells so
+    // that a reload never lands under a switch being dragged.
+    _ticker = [NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(readValues) userInfo:nil repeats:YES];
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    [_ticker invalidate];
+    _ticker = nil;
+}
+
+- (void)readValues {
+    for (UITableViewCell *cell in self.tableView.visibleCells) {
+        SGModRow *row = [self rowAt:[self.tableView indexPathForCell:cell]];
+        UILabel *label = (UILabel *)cell.accessoryView;
+        if (!row.value || ![label isKindOfClass:UILabel.class]) continue;
+        label.text = row.value();
+        [label sizeToFit];
+        [cell setNeedsLayout];
+    }
 }
 
 - (SGModRow *)rowAt:(NSIndexPath *)path {
@@ -295,6 +343,15 @@ static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
     } else if (row.page) {
         cell.accessoryView = symbol(@"chevron.right", 13, UIImageSymbolWeightSemibold, 16);
         cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    } else if (row.value) {
+        UILabel *label = [UILabel new];
+        label.font = titleFont();
+        label.textColor = grey();
+        label.text = row.value();
+        [label sizeToFit];
+        cell.accessoryView = label;
+    } else if (row.action) {
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
     }
     return cell;
 }
@@ -302,6 +359,10 @@ static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
     SGModRow *row = [self rowAt:path];
     if (row.page) [self.navigationController pushViewController:row.page() animated:YES];
+    if (!row.action) return;
+    row.action();
+    [table deselectRowAtIndexPath:path animated:YES];
+    [self readValues];
 }
 
 - (void)toggled:(UISwitch *)toggle {
@@ -831,6 +892,28 @@ static UIViewController *homePage(void) {
     ] footer:@"The shelves (Your top mixes, Jump back in, Recents and the rest) all share one card type, so they cannot be told apart yet."];
 }
 
+static UIViewController *playlistPage(void) {
+    return [[SGModPage alloc] initWithTitle:@"Playlist" intro:kRestart sections:@[
+        section(@"Hide in the header", @[
+            hideRow(@"Cover artwork", @"The square cover over the title", SGHidePlaylistArtwork),
+            hideRow(@"Description", @"The text under the title", SGHidePlaylistDescription),
+            hideRow(@"Creator and collaborators", @"The faces, the name and Message", SGHidePlaylistCreator),
+            hideRow(@"Length and saves", @"The line under the creator", SGHidePlaylistLength),
+        ]),
+        section(@"Hide header buttons", @[
+            hideRow(@"Video", @"The stack of clips at the start of the row", SGHidePlaylistVideo),
+            hideRow(@"Add to library", @"The plus", SGHidePlaylistAddTo),
+            hideRow(@"Download", @"The download arrow", SGHidePlaylistDownload),
+            hideRow(@"Share", @"The button that opens the share sheet", SGHidePlaylistShare),
+            hideRow(@"More", @"The three dots at the end of the row", SGHidePlaylistMore),
+        ]),
+        section(@"Hide over the tracks", @[
+            hideRow(@"Curation pills", @"Add, Mix, Video, Edit, Sort and the rest", SGHidePlaylistPills),
+            hideRow(@"Find and sort bar", @"Find on page and Sort, under the header", SGHidePlaylistFind),
+        ]),
+    ] footer:@"Hiding the cover pulls the rest of the header up into the space it stood in. Albums and artists are pages of another kind and keep everything."];
+}
+
 static UIViewController *nowPlayingPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Now Playing" intro:kRestart sections:@[
         section(@"Liquid Glass", @[
@@ -877,6 +960,27 @@ static UIViewController *nowPlayingPage(void) {
     ] footer:@"A flag switch forces one of Spotify's remote-config flags on; off leaves whatever Spotify sends. All flags lists every one of them."];
 }
 
+static UIViewController *privacyPage(void) {
+    NSMutableArray<SGModRow *> *counts = [NSMutableArray array];
+    for (NSString *label in SGBlockedLabels()) {
+        [counts addObject:statRow(label, ^NSString *{
+            return @(SGBlockedCount(label)).stringValue;
+        })];
+    }
+    [counts addObject:statRow(@"Total", ^NSString *{
+        return @(SGBlockedCount(nil)).stringValue;
+    })];
+    return [[SGModPage alloc] initWithTitle:@"Privacy" intro:kRestart sections:@[
+        section(@"Telemetry", @[
+            switchRow(@"Block telemetry", @"Answer the analytics endpoints with an empty reply instead of letting the request out", SGKeyBlockTelemetry),
+        ]),
+        section(@"Blocked so far", counts),
+        section(nil, @[
+            actionRow(@"Reset the counters", @"Start counting from zero", ^{ SGResetBlocked(); }),
+        ]),
+    ] footer:@"Spotify's own events go to the gabo receiver, the rest belong to the SDKs it carries: Firebase, Crashlytics, the Facebook SDK, Branch, Comscore, Segment and Google. Playback, search, sign-in and shared links are not on the list. Only what the app sends through NSURLSession can be counted, so anything its core sends over sockets of its own passes unseen."];
+}
+
 static UIViewController *modSettingsPage(void) {
     NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     NSString *about = [NSString stringWithFormat:@"spotifyglass %s · Spotify %@\n"
@@ -886,7 +990,9 @@ static UIViewController *modSettingsPage(void) {
             pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
             pageRow(@"Navbar", @"Reorder the tabs, hide them, add your own", ^UIViewController *{ return [SGNavbarPage new]; }),
             pageRow(@"Home", @"Gradient background, hide sections of the Home tab", ^UIViewController *{ return homePage(); }),
+            pageRow(@"Playlist", @"Hide the cover, the header buttons and the pills", ^UIViewController *{ return playlistPage(); }),
             pageRow(@"Now Playing", @"Glass, Spotify's player flags, hide buttons and cards", ^UIViewController *{ return nowPlayingPage(); }),
+            pageRow(@"Privacy", @"Block telemetry, and what it has blocked so far", ^UIViewController *{ return privacyPage(); }),
             pageRow(@"All flags", @"Search and force any of Spotify's remote-config flags", ^UIViewController *{ return [SGFlagsPage new]; }),
         ]),
     ] footer:about];
@@ -911,8 +1017,11 @@ static UIViewController *modSettingsPage(void) {
     _title.text = @"Mod Settings";
     _title.textColor = UIColor.whiteColor;
     _subtitle = [UILabel new];
-    _subtitle.text = @"UI Tweaks • Navbar • Home • Now Playing • Flags";
+    _subtitle.text = @"UI Tweaks • Navbar • Home • Playlist • Now Playing • Privacy • Flags";
     _subtitle.textColor = grey();
+    // One page too many for the row on a narrow phone.
+    _subtitle.adjustsFontSizeToFitWidth = YES;
+    _subtitle.minimumScaleFactor = 0.8;
     _chevron = symbol(@"chevron.right", 11, UIImageSymbolWeightSemibold, 12);
     for (UIView *v in @[_icon, _title, _subtitle, _chevron]) [self addSubview:v];
     [self addTarget:self action:@selector(open) forControlEvents:UIControlEventTouchUpInside];
@@ -980,12 +1089,47 @@ static void placeRow(UICollectionView *list, SGModSettingsRow *row) {
     list.contentInset = inset;
 }
 
+// Media quality, Playback, Account and most of the rest of settings are the same controller class
+// as the list they were opened from, which is why the row turned up at the end of all of them.
+// What is on the navigation stack is not that controller though: every page in the app is wrapped
+// in a MusicAppPageHostingViewController (trees/settings notifications opened.txt), and Spotify
+// pushes a settings sub page as a page of its own, leaving the list it came from on the stack
+// underneath. So the settings list inside the lowest wrapper that holds one is the list the row
+// belongs at the end of, and a controller with no stack to be found on keeps the row rather than
+// losing it.
+static UIViewController *settingsListIn(UIViewController *page, Class kind) {
+    if ([page isKindOfClass:kind]) return page;
+    for (UIViewController *child in page.childViewControllers) {
+        UIViewController *found = settingsListIn(child, kind);
+        if (found) return found;
+    }
+    return nil;
+}
+
+static BOOL isSettingsRoot(UIViewController *list) {
+    for (UIViewController *page in list.navigationController.viewControllers) {
+        UIViewController *found = settingsListIn(page, list.class);
+        if (found) return found == list;
+    }
+    return YES;
+}
+
 %hook _TtC21Settings_PlatformImpl26SettingsListViewController
 - (void)viewDidLayoutSubviews {
     %orig;
+    BOOL root = isSettingsRoot((UIViewController *)self);
     for (UIView *sub in ((UIViewController *)self).view.subviews) {
-        if (![sub isKindOfClass:UICollectionView.class] || objc_getAssociatedObject(sub, &kRowKey)) continue;
-        SGModSettingsRow *row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
+        if (![sub isKindOfClass:UICollectionView.class]) continue;
+        SGModSettingsRow *row = objc_getAssociatedObject(sub, &kRowKey);
+        // A page that laid itself out before it was on the stack looked like the list for as long
+        // as that took; the row goes again as soon as it can be seen for what it is.
+        if (!root) {
+            [row removeFromSuperview];
+            objc_setAssociatedObject(sub, &kRowKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            continue;
+        }
+        if (row) continue;
+        row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
         objc_setAssociatedObject(sub, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [sub addSubview:row];
     }
