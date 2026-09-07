@@ -6,6 +6,7 @@ __weak UIView *sg_nowPlayingCard = nil;
 __weak UIView *sg_lyricsCardRoot = nil;
 __weak UIView *sg_lyricsPageRoot = nil;
 __weak UIView *sg_homeRoot = nil;
+__weak UIView *sg_npvBackdropRoot = nil;
 
 BOOL sg_nowPlayingStock = NO;
 CGColorRef sg_nowPlayingCardColor = NULL;
@@ -50,6 +51,7 @@ void SGRequireClasses(NSArray<NSString *> *names) {
 NSString *const SGKeyNowPlayingBar = @"spotifyglass.nowPlayingBar";
 NSString *const SGKeyTabBar = @"spotifyglass.tabBar";
 NSString *const SGKeyPlayer = @"spotifyglass.player";
+NSString *const SGKeyPlayerBackdrop = @"spotifyglass.playerBackdrop";
 NSString *const SGKeyLyricsCard = @"spotifyglass.lyricsCard";
 NSString *const SGKeySearchField = @"spotifyglass.searchField";
 NSString *const SGKeySpotifyGlass = @"spotifyglass.spotifyGlass";
@@ -215,6 +217,9 @@ static UIVisualEffect *glassEffect(void) {
 static UIVisualEffectView *newPane(void) {
     UIVisualEffectView *glass = [[UIVisualEffectView alloc] initWithEffect:glassEffect()];
     glass.userInteractionEnabled = NO;
+    // A pane goes in at index 0, but a host that rebuilds its content puts that in at index 0 too
+    // and the pane would end up over it. Depth keeps a pane behind whatever the host draws.
+    glass.layer.zPosition = -1;
     return glass;
 }
 

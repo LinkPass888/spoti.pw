@@ -4,7 +4,7 @@
 
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
-    if (color && (sg_nowPlayingRoot || sg_tabBarRoot || sg_lyricsCardRoot || sg_lyricsPageRoot || sg_homeRoot)) {
+    if (color && (sg_nowPlayingRoot || sg_tabBarRoot || sg_lyricsCardRoot || sg_lyricsPageRoot || sg_homeRoot || sg_npvBackdropRoot)) {
         UIView *view = (UIView *)self.delegate;
         if ([view isKindOfClass:UIView.class] && view.layer == self && !SGKeepsColor(view)) {
             if (SGIsInside(view, sg_nowPlayingRoot)) {
@@ -18,6 +18,9 @@
                 if (!sg_nowPlayingStock) color = NULL;
             } else if (SGIsInside(view, sg_tabBarRoot) || SGIsInside(view, sg_lyricsCardRoot)
                        || SGIsInside(view, sg_lyricsPageRoot)) {
+                color = NULL;
+            } else if (SGIsInside(view, sg_npvBackdropRoot)) {
+                // The album colour arrives on the plane per track, outside any layout pass.
                 color = NULL;
             } else if (SGIsBaseSurface(color) && SGIsInside(view, sg_homeRoot)) {
                 // Home keeps its cards and its placeholders; only the base surface the gradient

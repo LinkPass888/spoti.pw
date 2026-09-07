@@ -84,6 +84,30 @@ static UIColor *pageBackground(void) { return [UIColor colorWithWhite:0x12 / 255
 
 #pragma mark - pages
 
+// Spotify's navigation controller asserts that everything on its stack is one of its own pages
+// (SPNavigationController.m:645, "[viewController conformsToProtocol:@protocol(SPTPageController)]"),
+// and the tab bar asks it for that page on every tab tap to log the interaction. A plain view
+// controller of the mod's pushed onto that stack therefore takes the app down the next time a tab
+// is pressed, from wherever it was left. The pages below answer the protocol's two questions
+// instead and are registered as conforming at load; if the protocol is gone they are presented
+// rather than pushed, so a rename in some later Spotify costs the push, not the app.
+static BOOL sg_pagesConform;
+
+@interface SGPage : UITableViewController
+@end
+
+@implementation SGPage
+
+- (NSString *)spt_pageIdentifier {
+    return @"spotifyglass";
+}
+
+- (NSURL *)spt_pageURI {
+    return [NSURL URLWithString:@"spotify:internal:spotifyglass"];
+}
+
+@end
+
 // A row is a switch when it has a key and a link to another page when it has a page. A flag row
 // switches one of Spotify's remote-config flags: on forces it, off leaves Spotify's value.
 @interface SGModRow : NSObject
@@ -191,7 +215,7 @@ static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
         ?: [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
 }
 
-@interface SGModPage : UITableViewController
+@interface SGModPage : SGPage
 - (instancetype)initWithTitle:(NSString *)title intro:(NSString *)intro sections:(NSArray<SGModSection *> *)sections footer:(NSString *)footer;
 @end
 
@@ -302,7 +326,7 @@ static NSString *flagState(const SGFlagDef *flag, id value) {
 
 // Every flag in SGFlagTable, filtered by the search words; forced flags first while the search
 // is empty. Bool flags get an Auto / Off / On control, the others a text field in an alert.
-@interface SGFlagsPage : UITableViewController <UISearchBarDelegate>
+@interface SGFlagsPage : SGPage <UISearchBarDelegate>
 @end
 
 @implementation SGFlagsPage {
@@ -498,9 +522,10 @@ static void appendTab(NSDictionary *tab) {
     NSMutableDictionary *entry = [tab mutableCopy];
     entry[SGNavbarID] = NSUUID.UUID.UUIDString;
     SGSetNavbarLayout([navbarEntries() arrayByAddingObject:entry]);
+    SGRefreshTabBar();
 }
 
-@interface SGTabPickerPage : UITableViewController
+@interface SGTabPickerPage : SGPage
 @end
 
 @implementation SGTabPickerPage {
@@ -602,7 +627,7 @@ static void appendTab(NSDictionary *tab) {
 
 // The tabs, in the order the bar shows them: drag to reorder, tap to show or hide, swipe a tab of
 // your own away. Spotify's own tabs can only be hidden, never removed.
-@interface SGNavbarPage : UITableViewController
+@interface SGNavbarPage : SGPage
 @end
 
 @implementation SGNavbarPage {
@@ -654,6 +679,7 @@ static void appendTab(NSDictionary *tab) {
 
 - (void)save {
     SGSetNavbarLayout(_entries);
+    SGRefreshTabBar();
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)table {
@@ -756,6 +782,7 @@ static void appendTab(NSDictionary *tab) {
 
 - (void)toggled:(UISwitch *)toggle {
     SGSetEnabled(SGKeyNavbar, toggle.on);
+    SGRefreshTabBar();
 }
 
 - (void)reset {
@@ -765,6 +792,7 @@ static void appendTab(NSDictionary *tab) {
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Reset" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
         SGSetNavbarLayout(@[]);
+        SGRefreshTabBar();
         self->_entries = navbarEntries();
         [self.tableView reloadData];
     }]];
@@ -807,6 +835,7 @@ static UIViewController *nowPlayingPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Now Playing" intro:kRestart sections:@[
         section(@"Liquid Glass", @[
             switchRow(@"Now playing bar", @"Glass card with round artwork", SGKeyNowPlayingBar),
+            optionRow(@"Artwork background", @"The cover blurred and dimmed behind the player instead of the flat album colour", SGKeyPlayerBackdrop),
             switchRow(@"Header buttons", @"Glass circles behind close and more, over the artwork", SGKeyPlayer),
             switchRow(@"Lyrics", @"Glass card, and the page it expands into", SGKeyLyricsCard),
         ]),
@@ -912,7 +941,7 @@ static UIViewController *modSettingsPage(void) {
         if ([r isKindOfClass:UIViewController.class]) owner = (UIViewController *)r;
     }
     UIViewController *page = modSettingsPage();
-    if (owner.navigationController) [owner.navigationController pushViewController:page animated:YES];
+    if (owner.navigationController && sg_pagesConform) [owner.navigationController pushViewController:page animated:YES];
     else [owner presentViewController:[[UINavigationController alloc] initWithRootViewController:page] animated:YES completion:nil];
 }
 
@@ -975,4 +1004,8 @@ static void placeRow(UICollectionView *list, SGModSettingsRow *row) {
 %ctor {
     %init;
     SGRequireClasses(@[@"_TtC21Settings_PlatformImpl26SettingsListViewController"]);
+    // Swift's own name for the protocol, which is what the runtime registers it under.
+    Protocol *page = objc_getProtocol("_TtP19Tome_PageAttributes17SPTPageController_") ?: objc_getProtocol("SPTPageController");
+    sg_pagesConform = page && class_addProtocol(SGPage.class, page);
+    if (!sg_pagesConform) SGLog(@"SPTPageController not found, the mod's pages are presented instead of pushed");
 }

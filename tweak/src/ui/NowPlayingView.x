@@ -1,4 +1,5 @@
-// Full screen player: glass where Liquid Glass belongs and nowhere else.
+// Full screen player: glass where Liquid Glass belongs and nowhere else, and the album colour
+// behind it traded for the cover art.
 //
 // Glass is the navigation layer floating over content, so only the header's two round buttons get
 // a pane, the way the Music app keeps its chrome. The playlist name between them is a label, and
@@ -9,9 +10,29 @@
 //
 // Tree (trees/now-playing.txt): NowPlaying_ModesImpl units, each a child controller whose view
 // holds one UIStackView row; the header row is chevron 48x48, playlist name 110x48, more 48x48.
+//
+// The background is one plane the size of the screen painted the album colour, Spotify's gradients
+// on top of it, and it is NPVBackgroundViewController's own view. Glass over a flat fill samples
+// that same flat fill back, which is why the header panes cannot be made out on it; white text and
+// Spotify's green both sit badly on saturated colour as well. SGKeyPlayerBackdrop strips the plane
+// and puts the cover behind the player instead, shrunk until none of the picture is left in it,
+// blurred, under a scrim ending near black so the cards scrolled up from below meet it. The switch
+// covers what that field changes around it too: the artwork takes corners and a shadow so it sits
+// on the field rather than being pasted onto it, the lyric under it drops behind the title in
+// contrast, and the timestamps take monospaced digits so they stop twitching every second.
 #import "SGCommon.h"
 
 static const CGFloat kButtonMin = 36, kButtonMax = 48;
+static const CGFloat kArtRadius = 12;
+// Small enough that no shape of the cover survives the scaling back up, large enough to keep the
+// colours where they were in it.
+static const CGFloat kCoverSample = 48;
+
+static BOOL backdropOn(void) {
+    return SGFlag(SGKeyPlayerBackdrop, NO);
+}
+
+#pragma mark - glass behind the header buttons
 
 // A glass circle per round button in the unit's row: children about as wide as they are tall.
 // The playlist name is 110 wide against 48 tall, so it keeps no pane, and neither do the children
@@ -42,7 +63,189 @@ static void glassBehindRoundButtons(UIViewController *unit) {
 }
 %end
 
+#pragma mark - the cover behind the player
+
+@interface SGScrimView : UIView
+@end
+
+@implementation SGScrimView
++ (Class)layerClass {
+    return CAGradientLayer.class;
+}
+@end
+
+static char kBackdropKey;
+
+static UIImage *sg_cover;       // the cover the backdrop stands on, compared by pointer
+static UIImage *sg_coverSmall;
+static __weak UIImageView *sg_coverView;
+
+static UIImage *shrunk(UIImage *cover) {
+    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+    format.scale = 1;
+    format.opaque = YES;
+    CGRect square = CGRectMake(0, 0, kCoverSample, kCoverSample);
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:square.size format:format];
+    return [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        [cover drawInRect:square];
+    }];
+}
+
+static void showCover(UIImage *cover) {
+    if (!cover || cover == sg_cover) return;
+    sg_cover = cover;
+    sg_coverSmall = shrunk(cover);
+    UIImageView *view = sg_coverView;
+    if (!view) return;
+    [UIView transitionWithView:view duration:0.3 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{
+        view.image = sg_coverSmall;
+    } completion:nil];
+}
+
+// The covers are the cells of a list scrolled sideways, one per track in the queue; the cell under
+// the middle of the list is the one playing.
+static UIImage *coverInFront(UIScrollView *list) {
+    CGFloat middle = list.contentOffset.x + list.bounds.size.width / 2;
+    __block UIImage *cover = nil;
+    // The cover is 354pt across, the glyph standing in for a missing one 64pt.
+    __block CGFloat widest = 200;
+    for (UIView *cell in list.subviews) {
+        if (middle < CGRectGetMinX(cell.frame) || middle > CGRectGetMaxX(cell.frame)) continue;
+        SGForEachView(cell, ^(UIView *view) {
+            UIImageView *image = (UIImageView *)view;
+            if (![view isKindOfClass:UIImageView.class] || !image.image || image.bounds.size.width <= widest) return;
+            widest = image.bounds.size.width;
+            cover = image.image;
+        });
+    }
+    return cover;
+}
+
+static UIView *backdropIn(UIView *plane) {
+    UIView *backdrop = objc_getAssociatedObject(plane, &kBackdropKey);
+    if (backdrop) return backdrop;
+
+    UIViewAutoresizing fill = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    backdrop = [[UIView alloc] initWithFrame:plane.bounds];
+    backdrop.userInteractionEnabled = NO;
+    backdrop.clipsToBounds = YES;
+    backdrop.autoresizingMask = fill;
+
+    UIImageView *cover = [[UIImageView alloc] initWithFrame:backdrop.bounds];
+    cover.contentMode = UIViewContentModeScaleAspectFill;
+    cover.autoresizingMask = fill;
+    cover.image = sg_coverSmall;
+    [backdrop addSubview:cover];
+    sg_coverView = cover;
+
+    // The scaled up cover comes back with the seams of its 48 pixels in it; the blur takes those
+    // out and is the same material as everything else the mod puts on this screen.
+    UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
+    blur.frame = backdrop.bounds;
+    blur.autoresizingMask = fill;
+    [backdrop addSubview:blur];
+
+    SGScrimView *scrim = [[SGScrimView alloc] initWithFrame:backdrop.bounds];
+    scrim.autoresizingMask = fill;
+    CAGradientLayer *fade = (CAGradientLayer *)scrim.layer;
+    fade.colors = @[
+        (id)[UIColor colorWithWhite:0 alpha:0.40].CGColor,
+        (id)[UIColor colorWithWhite:0 alpha:0.60].CGColor,
+        (id)[UIColor colorWithWhite:0 alpha:SGEnabled(SGKeyAmoled) ? 1 : 0.94].CGColor,
+    ];
+    fade.locations = @[@0, @0.5, @1];
+    [backdrop addSubview:scrim];
+
+    objc_setAssociatedObject(plane, &kBackdropKey, backdrop, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return backdrop;
+}
+
+%hook _TtC21NowPlaying_ScrollImpl27NPVBackgroundViewController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    if (!backdropOn()) return;
+    UIView *plane = ((UIViewController *)self).viewIfLoaded;
+    if (!plane || plane.bounds.size.height < 200) return;
+    sg_npvBackdropRoot = plane;
+    UIView *backdrop = backdropIn(plane);
+    for (UIView *sub in plane.subviews) {
+        if (sub != backdrop) SGStripBackgrounds(sub);
+    }
+    plane.layer.backgroundColor = NULL;
+    if (backdrop.superview != plane) [plane insertSubview:backdrop atIndex:0];
+}
+%end
+
+%hook _TtC35NowPlaying_ContentLayerPlatformImpl24AccessibleCollectionView
+- (void)layoutSubviews {
+    %orig;
+    if (backdropOn()) showCover(coverInFront((UIScrollView *)self));
+}
+%end
+
+#pragma mark - what the cover behind it changes around the player
+
+%hook _TtC35CreativeWorkCommons_CoverArtTiltKit16CoverArtTiltView
+- (void)layoutSubviews {
+    %orig;
+    if (!backdropOn()) return;
+    UIView *tilt = (UIView *)self;
+    CGSize size = tilt.bounds.size;
+    // The player's cover only; the bar downstairs carries a 40pt one of its own.
+    if (size.width < 200) return;
+    SGForEachView(tilt, ^(UIView *view) {
+        if (view == tilt || !CGSizeEqualToSize(view.bounds.size, size)) return;
+        view.layer.cornerRadius = kArtRadius;
+        view.layer.cornerCurve = kCACornerCurveContinuous;
+        view.clipsToBounds = YES;
+    });
+    tilt.layer.shadowColor = UIColor.blackColor.CGColor;
+    tilt.layer.shadowOpacity = 0.45;
+    tilt.layer.shadowRadius = 32;
+    tilt.layer.shadowOffset = CGSizeMake(0, 12);
+    tilt.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:tilt.bounds cornerRadius:kArtRadius].CGPath;
+}
+%end
+
+%hook _TtC22Lyrics_NPVContainerKit19LyricsContainerView
+- (void)layoutSubviews {
+    %orig;
+    // White at full strength, and alone in the space under the artwork, the line reads louder than
+    // the title it sits above. ui/Declutter.x hides the same view outright.
+    if (backdropOn()) ((UIView *)self).alpha = 0.72;
+}
+%end
+
+static UIFont *timeFont(void) {
+    static UIFont *font;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightRegular];
+    });
+    return font;
+}
+
+%hook _TtC20NowPlaying_ModesImpl19DurationElementUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    UIView *host = backdropOn() ? ((UIViewController *)self).viewIfLoaded : nil;
+    if (!host) return;
+    SGForEachView(host, ^(UIView *view) {
+        UILabel *label = (UILabel *)view;
+        if (![view isKindOfClass:UILabel.class] || label.font.pointSize > 11 || label.font == timeFont()) return;
+        label.font = timeFont();
+    });
+}
+%end
+
 %ctor {
     %init;
-    SGRequireClasses(@[@"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit"]);
+    SGRequireClasses(@[
+        @"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit",
+        @"_TtC21NowPlaying_ScrollImpl27NPVBackgroundViewController",
+        @"_TtC35NowPlaying_ContentLayerPlatformImpl24AccessibleCollectionView",
+        @"_TtC35CreativeWorkCommons_CoverArtTiltKit16CoverArtTiltView",
+        @"_TtC22Lyrics_NPVContainerKit19LyricsContainerView",
+        @"_TtC20NowPlaying_ModesImpl19DurationElementUnit",
+    ]);
 }

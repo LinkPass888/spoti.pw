@@ -11,14 +11,16 @@ static const CGFloat kPillHeight = 56;
 static const CGFloat kCircleSize = 52;
 static char kPillKey, kCircleKey;
 
-// The items the bar shows, left to right: the stack view's own arranged order, minus the ones
-// ui/Navbar.x switched off.
+// The items the bar shows, left to right. ui/Navbar.x leaves the stack in Spotify's order and
+// shifts the items across it, so the row reads by position on screen, not by arranged order.
 static NSArray<UIView *> *tabItems(UIView *tabBar) {
     NSMutableArray<UIView *> *items = [NSMutableArray array];
     for (UIView *item in SGRowIn(tabBar).arrangedSubviews) {
         if (!item.hidden && item.bounds.size.width >= 20) [items addObject:item];
     }
-    return items;
+    return [items sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+        return [@(SGFrameIn(a, tabBar).origin.x) compare:@(SGFrameIn(b, tabBar).origin.x)];
+    }];
 }
 
 static void styleTabBar(UIView *tabBar) {
@@ -56,6 +58,12 @@ static void styleTabBar(UIView *tabBar) {
     }
 }
 
+static UIView *tabBarOf(UIView *item) {
+    Class barClass = NSClassFromString(@"_TtC23NavigationUI_TabBarImpl10TabBarView");
+    for (UIView *v = item.superview; v; v = v.superview) if ([v isKindOfClass:barClass]) return v;
+    return nil;
+}
+
 // Items lay out their own icon and label, after the bar; hide the label, centre the icon, then
 // restyle the bar, whose own pass ran before the items had frames.
 static void styleTabItem(UIView *item) {
@@ -69,10 +77,8 @@ static void styleTabItem(UIView *item) {
             v.center = CGPointMake(v.center.x, target.y);
         }
     });
-    Class barClass = NSClassFromString(@"_TtC23NavigationUI_TabBarImpl10TabBarView");
-    for (UIView *v = item.superview; v; v = v.superview) {
-        if ([v isKindOfClass:barClass]) { styleTabBar(v); return; }
-    }
+    UIView *bar = tabBarOf(item);
+    if (bar) styleTabBar(bar);
 }
 
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
@@ -83,20 +89,31 @@ static void styleTabItem(UIView *item) {
     SGComposeTabBar((UIView *)self);
     for (UIView *sub in ((UIView *)self).subviews) [sub layoutIfNeeded];
     styleTabBar((UIView *)self);
+    SGLogTabBarRow((UIView *)self);
 }
 %end
+
+// The bar's own pass runs once, before Spotify has filled the row, and does not run again until
+// something touches it; the items lay out as they arrive, which is when the order is ours to set.
+static void itemDidLayOut(UIView *item) {
+    UIView *bar = tabBarOf(item);
+    if (!bar) return;
+    SGComposeTabBar(bar);
+    styleTabItem(item);
+    SGLogTabBarRow(bar);
+}
 
 %hook _TtC23NavigationUI_TabBarImpl21TabBarItemElementView
 - (void)layoutSubviews {
     %orig;
-    styleTabItem((UIView *)self);
+    itemDidLayOut((UIView *)self);
 }
 %end
 
 %hook _TtC25CreateMenu_TabBarItemImpl24CreateMenuTabBarItemView
 - (void)layoutSubviews {
     %orig;
-    styleTabItem((UIView *)self);
+    itemDidLayOut((UIView *)self);
 }
 %end
 

@@ -1,11 +1,14 @@
 // Navbar: which tabs the bar shows, in what order, and tabs of the mod's own that open any
 // spotify: URI. Spotify keeps its four items (Home, Search, Library, Create) as the arranged
-// subviews of one stack view, each item handling its own tap, so the order is ours to change:
-// this file rewrites the stack on every layout pass, hides the items switched off and slots its
-// own item views between them. Spotify's own updates to the bar are undone on the pass after.
+// subviews of one stack view, but a tap on one of them is answered by counting the row off from
+// the left, not by asking the item what it is: moved in the stack, an item takes the tap of
+// whatever used to stand there. So the stack's own order is left exactly as Spotify built it.
 //
-// A tap on an item of the mod's own goes through Spotify's link dispatcher, the same route the
-// app takes for a link it opens itself, so any URI that resolves to a page works.
+// The row is split into equal slots instead, and the wanted order is a translation per item:
+// hit testing goes by frame, so the touch follows the icon, while Spotify still counts its items
+// off in the order it put them in. Items of the mod's own go on the end of the stack, past that
+// count, and are translated into place with the rest. A tap on one goes through Spotify's link
+// dispatcher, the same route the app takes for a link it opens itself, so any URI works.
 //
 // Tree (trees/home.txt): NavigationUI_TabBarImpl.TabBarView > TabBarCompactView > UIStackView
 //   402x49 of four ElementContentView<TabBarItemElement> 100x49, each an SPTEncoreIconView 24x24
@@ -29,7 +32,14 @@ static const CGFloat kLabelTop = 35;
 static const CGFloat kLabelHeight = 14;
 static char kCustomKey;
 
+// Where Spotify's own items keep their icon and label, read off one of them every pass. ui/TabBar.x
+// moves the icons when the glass bar is on, and this follows a pass later, so an item of the mod's
+// own sits on the same line as its neighbours either way.
+static CGRect sg_iconBox = {{0, kIconTop}, {kIconSize, kIconSize}};
+static CGRect sg_labelBox = {{0, kLabelTop}, {0, kLabelHeight}};
+
 static __weak SGLinkDispatcher *sg_linkDispatcher;
+static __weak UIView *sg_navbarRoot;
 static UIFont *sg_tabFont;
 // Spotify's own tabs in Spotify's order, from the first layout pass of this launch, before
 // anything below has moved them.
@@ -98,17 +108,22 @@ static UIView *iconView(NSString *name) {
     [self addSubview:_icon];
 }
 
-// The item keeps Spotify's own geometry, and follows ui/TabBar.x when the glass tab bar is on:
-// no label, the icon centred in the item instead.
+// Both boxes come off a neighbour, so whatever Spotify or ui/TabBar.x does to the row's line-up
+// is copied rather than guessed at; only the horizontal centring is the item's own.
 - (void)layoutSubviews {
     [super layoutSubviews];
-    BOOL glass = SGEnabled(SGKeyTabBar);
-    CGSize size = self.bounds.size;
-    _title.hidden = glass;
+    CGFloat width = self.bounds.size.width;
+    _title.hidden = SGEnabled(SGKeyTabBar);
     _title.font = sg_tabFont ?: [UIFont systemFontOfSize:10];
-    _title.frame = CGRectMake(0, kLabelTop, size.width, kLabelHeight);
-    CGFloat top = glass ? (size.height - kIconSize) / 2 : kIconTop;
-    _icon.frame = CGRectMake((size.width - kIconSize) / 2, top, kIconSize, kIconSize);
+    _title.frame = CGRectMake(0, CGRectGetMinY(sg_labelBox), width, CGRectGetHeight(sg_labelBox));
+    _icon.frame = CGRectMake((width - CGRectGetWidth(sg_iconBox)) / 2, CGRectGetMinY(sg_iconBox),
+                             CGRectGetWidth(sg_iconBox), CGRectGetHeight(sg_iconBox));
+}
+
+// A row that splits its width evenly ignores this, but one that sizes itself to its content would
+// otherwise have nothing to go on for an item of ours.
+- (CGSize)intrinsicContentSize {
+    return CGSizeMake(kIconSize * 2, kLabelTop + kLabelHeight);
 }
 
 - (void)setHighlighted:(BOOL)highlighted {
@@ -140,11 +155,16 @@ static NSString *stockID(UIView *item) {
     return text ?: NSStringFromClass(item.class);
 }
 
-static void rememberFont(UIView *item) {
-    if (sg_tabFont) return;
+static void measureItem(UIView *item) {
+    __block UIView *icon = nil, *label = nil;
     SGForEachView(item, ^(UIView *v) {
-        if (!sg_tabFont && [v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) sg_tabFont = ((UILabel *)v).font;
+        if (!icon && [NSStringFromClass(v.class) containsString:@"IconView"] && v.bounds.size.width > 1) icon = v;
+        if (!label && [v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) label = v;
     });
+    if (icon) sg_iconBox = SGFrameIn(icon, item);
+    if (!label) return;
+    sg_labelBox = SGFrameIn(label, item);
+    if (!sg_tabFont) sg_tabFont = ((UILabel *)label).font;
 }
 
 static NSMutableDictionary<NSString *, SGTabItemView *> *customItems(UIStackView *stack) {
@@ -159,6 +179,7 @@ static NSMutableDictionary<NSString *, SGTabItemView *> *customItems(UIStackView
 void SGComposeTabBar(UIView *tabBar) {
     UIStackView *stack = SGRowIn(tabBar);
     if (!stack) return;
+    sg_navbarRoot = tabBar;
 
     NSMutableDictionary<NSString *, UIView *> *stockViews = [NSMutableDictionary dictionary];
     for (UIView *item in stack.arrangedSubviews) {
@@ -166,7 +187,7 @@ void SGComposeTabBar(UIView *tabBar) {
         NSString *ident = stockID(item);
         if (stockViews[ident]) continue;
         stockViews[ident] = item;
-        rememberFont(item);
+        measureItem(item);
         if (!sg_stockOrder) sg_stockOrder = [NSMutableArray array];
         if (![sg_stockOrder containsObject:ident]) [sg_stockOrder addObject:ident];
     }
@@ -215,12 +236,79 @@ void SGComposeTabBar(UIView *tabBar) {
     for (UIView *item in wanted) if (!item.hidden) empty = NO;
     if (empty) for (UIView *item in wanted) item.hidden = NO;
 
-    for (NSUInteger i = 0; i < wanted.count; i++) {
-        UIView *item = wanted[i];
-        if (item.superview == stack && [stack.arrangedSubviews indexOfObject:item] == i) continue;
-        [stack insertArrangedSubview:item atIndex:i];
+    // Items of the mod's own join the stack at the end, where they are past whatever Spotify
+    // counts, and Spotify's own keep the places it gave them.
+    for (UIView *item in wanted) {
+        if ([item isKindOfClass:SGTabItemView.class] && item.superview != stack) [stack addArrangedSubview:item];
+    }
+    // Spotify sizes the row for the four items it ships; equal slots for whatever is on it now
+    // keeps a fifth from running off the right edge, and makes the order a whole slot's shift.
+    if (stack.distribution != UIStackViewDistributionFillEqually) stack.distribution = UIStackViewDistributionFillEqually;
+
+    NSMutableArray<UIView *> *slots = [NSMutableArray array];
+    for (UIView *item in stack.arrangedSubviews) if (!item.hidden) [slots addObject:item];
+    NSMutableArray<UIView *> *order = [NSMutableArray array];
+    for (UIView *item in wanted) if (!item.hidden && [slots containsObject:item]) [order addObject:item];
+    CGFloat slotWidth = slots.count ? stack.bounds.size.width / slots.count : 0;
+
+    for (UIView *item in stack.arrangedSubviews) {
+        NSUInteger from = [slots indexOfObject:item], to = [order indexOfObject:item];
+        CGAffineTransform shift = from == NSNotFound || to == NSNotFound
+            ? CGAffineTransformIdentity
+            : CGAffineTransformMakeTranslation(((CGFloat)to - (CGFloat)from) * slotWidth, 0);
+        if (!CGAffineTransformEqualToTransform(item.transform, shift)) item.transform = shift;
     }
 }
+
+void SGRefreshTabBar(void) {
+    [sg_navbarRoot setNeedsLayout];
+}
+
+// What the row settled on, logged whenever it changes: `make log` then says whether the items fit,
+// what is holding their width, and in what order the bar ended up.
+void SGLogTabBarRow(UIView *tabBar) {
+    UIStackView *stack = SGRowIn(tabBar);
+    if (!stack) return;
+    NSMutableString *out = [NSMutableString stringWithFormat:@"row in %@ %@, icon %@ label %@, stack %@ axis %ld dist %ld align %ld spacing %.1f autolayout %d",
+                            NSStringFromClass(tabBar.class), NSStringFromCGRect(tabBar.frame),
+                            NSStringFromCGRect(sg_iconBox), NSStringFromCGRect(sg_labelBox), NSStringFromCGRect(stack.frame),
+                            (long)stack.axis, (long)stack.distribution, (long)stack.alignment, stack.spacing,
+                            !stack.translatesAutoresizingMaskIntoConstraints];
+    NSUInteger index = 0;
+    for (UIView *item in stack.arrangedSubviews) {
+        [out appendFormat:@"\n  %lu %@ %@%@ shift %.1f autolayout %d", (unsigned long)index++, NSStringFromClass(item.class),
+             NSStringFromCGRect(item.frame), item.hidden ? @" hidden" : @"", item.transform.tx,
+             !item.translatesAutoresizingMaskIntoConstraints];
+        for (NSLayoutConstraint *c in item.constraints) {
+            if (c.firstAttribute == NSLayoutAttributeWidth || c.secondAttribute == NSLayoutAttributeWidth) [out appendFormat:@"\n    %@", c];
+        }
+    }
+    for (NSLayoutConstraint *c in stack.constraints) [out appendFormat:@"\n  own %@", c];
+    for (NSLayoutConstraint *c in stack.superview.constraints) {
+        if (c.firstItem == stack || c.secondItem == stack) [out appendFormat:@"\n  held %@", c];
+    }
+    static NSString *last;
+    if ([out isEqualToString:last]) return;
+    last = [out copy];
+    SGLogLong(@"navbar", out);
+}
+
+// Whether Spotify reads its own item list through this ObjC bridge decides whether the bar can be
+// composed at the model level, where the order, the taps and the widths would all follow by
+// themselves, instead of by moving views about. Silence in the log says it cannot.
+%hook _TtC28NavigationUI_TabBarItemsImpl29TabBarItemsNavigationListImpl
+- (NSArray *)items {
+    NSArray *items = %orig;
+    NSMutableString *out = [NSMutableString stringWithFormat:@"list read, %lu items", (unsigned long)items.count];
+    for (id item in items) [out appendFormat:@"\n  %@ · %@", [item valueForKey:@"title"], [item valueForKey:@"viewURI"]];
+    static NSString *last;
+    if (![out isEqualToString:last]) {
+        last = [out copy];
+        SGLogLong(@"navbar", out);
+    }
+    return items;
+}
+%end
 
 // The dispatcher is a singleton the app builds at startup; this is the last call of its setup.
 %hook SPTLinkDispatcherImplementation
@@ -232,5 +320,10 @@ void SGComposeTabBar(UIView *tabBar) {
 
 %ctor {
     %init;
-    SGRequireClasses(@[@"SPTLinkDispatcherImplementation", @"SPTEncoreIcon", @"SPTEncoreIconView"]);
+    SGRequireClasses(@[
+        @"SPTLinkDispatcherImplementation",
+        @"SPTEncoreIcon",
+        @"SPTEncoreIconView",
+        @"_TtC28NavigationUI_TabBarItemsImpl29TabBarItemsNavigationListImpl",
+    ]);
 }

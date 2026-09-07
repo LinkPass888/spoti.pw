@@ -4,6 +4,7 @@ home 2 more scrolled | Home tab
 home 3 more scrolled | Home tab
 home 4 more scrolled | Home tab
 search | Search tab
+search opened | Search tab
 library | Library tab
 create | the + tab
 now-playing | tap the now playing bar to open the full 

@@ -55,6 +55,7 @@ extern __weak UIView *sg_nowPlayingCard;
 extern __weak UIView *sg_lyricsCardRoot;
 extern __weak UIView *sg_lyricsPageRoot;
 extern __weak UIView *sg_homeRoot;  // ui/HomeGradient.x, the base surface only
+extern __weak UIView *sg_npvBackdropRoot;  // ui/NowPlayingView.x, the plane behind the player
 BOOL SGLooksLikeCard(UIView *view, CGColorRef color);
 
 // The full screen player morphs the now playing bar's own card into the cover art, so for the
@@ -68,6 +69,7 @@ void SGRememberCardColor(CGColorRef color);
 extern NSString *const SGKeyNowPlayingBar;
 extern NSString *const SGKeyTabBar;
 extern NSString *const SGKeyPlayer;
+extern NSString *const SGKeyPlayerBackdrop;  // off unless it is asked for
 extern NSString *const SGKeyLyricsCard;
 extern NSString *const SGKeySearchField;
 extern NSString *const SGKeySpotifyGlass;
@@ -92,8 +94,11 @@ void SGSetNavbarLayout(NSArray<NSDictionary *> *layout);
 NSArray<NSString *> *SGNavbarStock(void);
 void SGSetNavbarStock(NSArray<NSString *> *stock);
 
-// ui/Navbar.x, called from the tab bar's layout pass in ui/TabBar.x.
+// ui/Navbar.x, called from the tab bar's layout passes in ui/TabBar.x.
 void SGComposeTabBar(UIView *tabBar);
+void SGLogTabBarRow(UIView *tabBar);
+// Lays the bar out again after the Navbar page changes something, so it does not wait for a touch.
+void SGRefreshTabBar(void);
 
 // Spotify's remote-config flags, generated into SGFlagList.m by scripts/extract-flags.py.
 typedef NS_ENUM(NSInteger, SGFlagType) { SGFlagUnknown, SGFlagBool, SGFlagInt, SGFlagEnum };
