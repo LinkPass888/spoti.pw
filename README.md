@@ -20,7 +20,7 @@ signed and installed from the Mac.
     make build      # out/Spotify-<version>-glass.ipa with FLEX
     make release    # same without FLEX
     make install    # build, sign with your certificate, install over USB
-    make trees      # record view trees screen by screen
+    make trees      # record view trees screen by screen (FLEX build open on the phone, USB)
     make log        # stream [spotifyglass] log lines from the phone
 
 Needs Theos in `~/theos` with an iPhoneOS SDK, Homebrew `make ldid dpkg zsign ideviceinstaller
@@ -32,5 +32,5 @@ Signing reads `SIGN_P12`, `SIGN_PROFILE` and `SIGN_P12_PASSWORD` from `.signing.
 1. `make trees`, record the screen, read `trees/<screen>.txt` for the classes and frames.
 2. Add `tweak/src/ui/<Area>.x`: hook the classes, use `SGGlassFor`/`SGGlassAt` + `SGShapeGlass` for
    glass, `SGStripBackgrounds` to clear Spotify's paint, and end with `%ctor { %init; SGRequireClasses(...); }`.
-3. `make install`. Log lines are prefixed `[spotifyglass]`; a FLEX build also dumps the visible
-   screen whenever the app goes to the background.
+3. `make install`. Log lines are prefixed `[spotifyglass]`. A FLEX build serves the visible screen's
+   tree on the phone's port 8085, which `make trees` reaches over USB through iproxy.

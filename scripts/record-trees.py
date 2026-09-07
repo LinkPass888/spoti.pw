@@ -111,6 +111,13 @@ def fetch(url):
         return response.read().decode("utf-8", "replace")
 
 
+def ask(prompt):
+    try:
+        return input(prompt).strip().lower()
+    except EOFError:
+        return "q"
+
+
 def pick(screens):
     print("\nScreens in trees/:")
     for i, (name, hint) in enumerate(screens, 1):
@@ -119,7 +126,7 @@ def pick(screens):
         print(f"  {i:2d}. {name:<14} {status:<26} {hint}")
     print("\nSelect: numbers or ranges (1,3-5), 'a' all, 'm' missing only [default], 'n' add a new screen, 'q' quit")
     while True:
-        answer = input("> ").strip().lower()
+        answer = ask("> ")
         if answer in ("q", "quit"):
             return None
         if answer == "n":
@@ -157,7 +164,7 @@ def record(url, name, hint):
     print(f"\n▶ Now recording: {name}{'  (will overwrite)' if exists else ''}")
     print(f"  {hint}. When it is on screen press Enter.   [s] skip   [q] quit")
     while True:
-        answer = input("  > ").strip().lower()
+        answer = ask("  > ")
         if answer == "q":
             return "quit"
         if answer == "s":
