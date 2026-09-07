@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the spotifyglass tweak and injects it (plus FLEX) into a decrypted Spotify IPA.
 #
-#   ./pipeline.sh <decrypted.ipa> [-o out.ipa] [--no-flex] [--install]
+#   scripts/pipeline.sh <decrypted.ipa> [-o out.ipa] [--no-flex] [--install]   (or: make build / make install)
 #
 # --install hands the result to install.sh (sign with your certificate, push to the plugged-in iPhone).
 #
@@ -9,9 +9,9 @@
 # gmake, ldid, dpkg-deb (brew) and cyan (uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw").
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 THEOS="${THEOS:-$HOME/theos}"
-FLEX_DEB="$ROOT/deb/com.hopeless.autoflex_0.0.1_iphoneos-arm.deb"
+FLEX_DEB="$ROOT/vendor/com.hopeless.autoflex_0.0.1_iphoneos-arm.deb"
 
 IN="" OUT="" WITH_FLEX=1 INSTALL=0
 while [ $# -gt 0 ]; do
@@ -54,5 +54,5 @@ echo "==> injecting"
 cyan -i "$IN" -o "$OUT" -f "${FILES[@]}" -l "$ROOT/plist/liquid-glass.plist" -s --overwrite
 
 echo "==> done: $OUT"
-[ "$INSTALL" = 1 ] && exec "$ROOT/install.sh" "$OUT"
+[ "$INSTALL" = 1 ] && exec "$ROOT/scripts/install.sh" "$OUT"
 exit 0

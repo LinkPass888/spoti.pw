@@ -4,6 +4,7 @@ search | Search tab
 library | Library tab
 create | the + tab
 now-playing | tap the now playing bar to open the full player, wait 2 s
+playlist list | open the playlist list
 playlist | open any playlist
 album | open any album
 artist | open any artist page

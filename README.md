@@ -1,30 +1,36 @@
 # custom_spotify
 
-Liquid Glass for the Spotify iOS app, applied to a decrypted IPA without a jailbreak.
+Liquid Glass UI for the Spotify iOS app, applied to a decrypted IPA without a jailbreak.
+A Theos tweak, one dylib built from one source file per UI area, is injected into the IPA
+together with [FLEX](https://github.com/FLEXTool/FLEX) for in-app inspection. The result is
+signed and installed from the Mac.
 
-    ./pipeline.sh src/com.spotify.client-9.1.78-Decrypted.ipa          # FLEX + glass
-    ./pipeline.sh src/com.spotify.client-9.1.78-Decrypted.ipa --no-flex
+## Layout
 
-The result lands in `out/` fakesigned. Add `--install` (or run `./install.sh out/<file>.ipa`) to sign it
-with your own certificate and push it to the iPhone over USB; put `SIGN_P12`, `SIGN_PROFILE` and
-`SIGN_P12_PASSWORD` into `.signing.env` first. Needs `brew install zsign ideviceinstaller`.
+    tweak/src/ui/*.x   the tweaks: NowPlayingBar, TabBar, NowPlayingView, SearchField, LiquidGlassFlags, Repaint
+    tweak/src/SG*      shared helpers (glass panes, view walking, logging, screen dumps)
+    scripts/           pipeline.sh (build + inject), install.sh (sign + install), record-trees.py, dump-log.sh
+    trees/             recorded view trees, one per screen; the input for every new tweak
+    plist/             Info.plist overrides merged into the app (turns UIDesignRequiresCompatibility off)
+    vendor/            AutoFLEX deb
+    ipa/, out/         decrypted Spotify IPA in, built IPAs out (both gitignored)
 
-- `tweak/` — Theos tweak. Flips Spotify's own Liquid Glass flags (`Reprise_LiquidGlassKit`),
-  turns the now playing bar into a glass card with round artwork, and turns the tab bar into a
-  glass capsule plus a separate glass search circle. Spotify's own controls stay in place.
-- `plist/liquid-glass.plist` — merged into Info.plist, turns `UIDesignRequiresCompatibility` off.
-- `deb/` — [AutoFLEX](https://github.com/pwnless/AutoFLEX) release, injected unless `--no-flex`.
+## Use
 
-Runtime log lines are prefixed `[spotifyglass]`. With the phone on USB, `./dump-log.sh > out/spotifyglass.log`
-then relaunch Spotify captures them on the Mac; on the phone they are in FLEX → System Log (long-press
-a row to copy it). The first layout of each bar dumps its full view hierarchy in numbered parts, and in a FLEX build every
-time the app goes to the background it dumps the whole visible screen: classes, frames, colours, radii,
-label text and the view controller tree. Open a screen, swipe to the home screen, and the tree is in the log.
+    make build      # out/Spotify-<version>-glass.ipa with FLEX
+    make release    # same without FLEX
+    make install    # build, sign with your certificate, install over USB
+    make trees      # record view trees screen by screen
+    make log        # stream [spotifyglass] log lines from the phone
 
-## Recording view trees
+Needs Theos in `~/theos` with an iPhoneOS SDK, Homebrew `make ldid dpkg zsign ideviceinstaller
+libimobiledevice`, and cyan (`uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"`).
+Signing reads `SIGN_P12`, `SIGN_PROFILE` and `SIGN_P12_PASSWORD` from `.signing.env`.
 
-`./record-trees.py` captures one tree per screen over USB into `trees/<name>.txt`. It lists the
-screens from `trees/screens.txt` with their recorded/missing status, lets you pick some, all, only
-the missing ones, or add a new named screen, then walks you through them: open the screen, swipe
-to the iOS home screen, press Enter. Nothing is overwritten unless you selected it.
-`./record-trees.py --import out/spotifyglass.log name` files an existing capture the same way.
+## Adding a tweak
+
+1. `make trees`, record the screen, read `trees/<screen>.txt` for the classes and frames.
+2. Add `tweak/src/ui/<Area>.x`: hook the classes, use `SGGlassFor`/`SGGlassAt` + `SGShapeGlass` for
+   glass, `SGStripBackgrounds` to clear Spotify's paint, and end with `%ctor { %init; SGRequireClasses(...); }`.
+3. `make install`. Log lines are prefixed `[spotifyglass]`; a FLEX build also dumps the visible
+   screen whenever the app goes to the background.

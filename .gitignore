@@ -1,10 +1,10 @@
+!trees/screens.txt
 *.ipa
+.DS_Store
+.signing.env
+__pycache__/
 out/
+trees/*.txt
 tweak/.theos/
 tweak/obj/
 tweak/packages/
-.DS_Store
-.signing.env
-trees/*.txt
-!trees/screens.txt
-__pycache__/

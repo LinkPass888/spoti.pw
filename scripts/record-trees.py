@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Record Spotify view trees from the iPhone over USB, one file per screen, into trees/.
 
-    ./record-trees.py                    # interactive: pick screens, record each, save trees/<name>.txt
-    ./record-trees.py --import LOG NAME  # parse an existing capture into trees/NAME.txt
+    scripts/record-trees.py              # interactive: pick screens, record each, save trees/<name>.txt
+    scripts/record-trees.py --import LOG NAME  # parse an existing capture into trees/NAME.txt
 
 The FLEX build of the tweak dumps the visible screen when Spotify goes to the background (and the
 full player once it appears). Screens live in trees/screens.txt as "name | hint"; new ones are added
@@ -15,7 +15,7 @@ import subprocess
 import sys
 import threading
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TREES = os.path.join(ROOT, "trees")
 SCREENS = os.path.join(TREES, "screens.txt")
 
