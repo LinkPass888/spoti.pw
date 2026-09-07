@@ -4,7 +4,7 @@
 
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
-    if (color && (sg_nowPlayingRoot || sg_tabBarRoot)) {
+    if (color && (sg_nowPlayingRoot || sg_tabBarRoot || sg_lyricsCardRoot || sg_lyricsPageRoot || sg_homeRoot)) {
         UIView *view = (UIView *)self.delegate;
         if ([view isKindOfClass:UIView.class] && view.layer == self && !SGKeepsColor(view)) {
             if (SGIsInside(view, sg_nowPlayingRoot)) {
@@ -13,8 +13,15 @@
                     UIView *bar = sg_nowPlayingRoot;
                     dispatch_async(dispatch_get_main_queue(), ^{ [bar.superview setNeedsLayout]; });
                 }
+                if (view == sg_nowPlayingCard) SGRememberCardColor(color);
+                // While the full screen player animates, the bar is Spotify's own again.
+                if (!sg_nowPlayingStock) color = NULL;
+            } else if (SGIsInside(view, sg_tabBarRoot) || SGIsInside(view, sg_lyricsCardRoot)
+                       || SGIsInside(view, sg_lyricsPageRoot)) {
                 color = NULL;
-            } else if (SGIsInside(view, sg_tabBarRoot)) {
+            } else if (SGIsBaseSurface(color) && SGIsInside(view, sg_homeRoot)) {
+                // Home keeps its cards and its placeholders; only the base surface the gradient
+                // of ui/HomeGradient.x sits behind goes.
                 color = NULL;
             }
         }

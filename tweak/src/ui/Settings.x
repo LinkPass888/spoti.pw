@@ -1,8 +1,9 @@
 // Settings: a Mod Settings row at the end of Spotify's settings list opens the mod's own pages:
 // UI Tweaks, Home and Now Playing, each sections of switches (the mod's own and a few of
-// Spotify's remote-config flags), and All flags, a searchable list of every flag with an
-// override per flag. The tweaks read the switches when they run, so a change shows after Spotify
-// restarts.
+// Spotify's remote-config flags), Navbar, the tab bar's own composition, and All flags, a
+// searchable list of every flag with an override per flag. The tweaks read the switches when they
+// run, so a change shows after Spotify restarts; the Navbar page is the exception and applies as
+// soon as the bar lays out again.
 //
 // Tree (trees/settings.txt): SettingsListViewController.view > SettingsListCollectionView of
 //   Element_List cells 402x56: 24pt icon at x 12, 13pt white title and 11pt grey subtitle at
@@ -120,6 +121,13 @@ static SGModRow *hideRow(NSString *title, NSString *subtitle, NSString *key) {
     return row;
 }
 
+// A switch for something the mod adds rather than takes away: off until it is asked for.
+static SGModRow *optionRow(NSString *title, NSString *subtitle, NSString *key) {
+    SGModRow *row = switchRow(title, subtitle, key);
+    row.defaultOn = NO;
+    return row;
+}
+
 static SGModRow *flagRow(NSString *title, NSString *key) {
     SGModRow *row = hideRow(title, [key substringFromIndex:[key rangeOfString:@"."].location + 1], key);
     row.flag = YES;
@@ -142,6 +150,46 @@ static SGModSection *section(NSString *title, NSArray<SGModRow *> *rows) {
 }
 
 static const CGFloat kSectionHeaderHeight = 38;
+
+// Every page below draws Spotify's own list row: a 13pt white title over an 11pt grey subtitle,
+// with an optional symbol in the leading slot.
+static void fillCell(UITableViewCell *cell, NSString *title, NSString *subtitle, UIColor *color, NSString *symbolName) {
+    UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
+    content.text = title;
+    content.secondaryText = subtitle;
+    content.textProperties.font = titleFont();
+    content.textProperties.color = color ?: UIColor.whiteColor;
+    content.secondaryTextProperties.font = subtitleFont();
+    content.secondaryTextProperties.color = grey();
+    content.textToSecondaryTextVerticalPadding = 0;
+    content.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(10, 16, 10, 16);
+    if (symbolName) {
+        content.image = [UIImage systemImageNamed:symbolName withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightRegular]];
+        content.imageProperties.tintColor = color ?: UIColor.whiteColor;
+        content.imageToTextPadding = 14;
+    }
+    cell.contentConfiguration = content;
+    cell.backgroundColor = UIColor.clearColor;
+    cell.accessoryView = nil;
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+}
+
+static UIView *sectionHeader(UITableView *table, NSString *title) {
+    UILabel *label = [UILabel new];
+    label.text = title.uppercaseString;
+    label.font = subtitleFont();
+    label.textColor = grey();
+    label.frame = CGRectMake(16, 20, table.bounds.size.width - 32, 14);
+    label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, table.bounds.size.width, kSectionHeaderHeight)];
+    [header addSubview:label];
+    return header;
+}
+
+static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
+    return [table dequeueReusableCellWithIdentifier:identifier]
+        ?: [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
+}
 
 @interface SGModPage : UITableViewController
 - (instancetype)initWithTitle:(NSString *)title intro:(NSString *)intro sections:(NSArray<SGModSection *> *)sections footer:(NSString *)footer;
@@ -197,16 +245,7 @@ static const CGFloat kSectionHeaderHeight = 38;
 
 - (UIView *)tableView:(UITableView *)table viewForHeaderInSection:(NSInteger)section {
     NSString *title = _sections[(NSUInteger)section].title;
-    if (!title) return nil;
-    UILabel *label = [UILabel new];
-    label.text = title.uppercaseString;
-    label.font = subtitleFont();
-    label.textColor = grey();
-    label.frame = CGRectMake(16, 20, table.bounds.size.width - 32, 14);
-    label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, table.bounds.size.width, kSectionHeaderHeight)];
-    [header addSubview:label];
-    return header;
+    return title ? sectionHeader(table, title) : nil;
 }
 
 - (CGFloat)tableView:(UITableView *)table heightForHeaderInSection:(NSInteger)section {
@@ -218,23 +257,9 @@ static const CGFloat kSectionHeaderHeight = 38;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
-    UITableViewCell *cell = [table dequeueReusableCellWithIdentifier:@"row"]
-        ?: [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"row"];
+    UITableViewCell *cell = dequeue(table, @"row");
     SGModRow *row = [self rowAt:path];
-
-    UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
-    content.text = row.title;
-    content.secondaryText = row.subtitle;
-    content.textProperties.font = titleFont();
-    content.textProperties.color = UIColor.whiteColor;
-    content.secondaryTextProperties.font = subtitleFont();
-    content.secondaryTextProperties.color = grey();
-    content.textToSecondaryTextVerticalPadding = 0;
-    content.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(10, 16, 10, 16);
-    cell.contentConfiguration = content;
-    cell.backgroundColor = UIColor.clearColor;
-    cell.accessoryView = nil;
-    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    fillCell(cell, row.title, row.subtitle, nil, nil);
 
     if (row.key) {
         UISwitch *toggle = [UISwitch new];
@@ -356,25 +381,15 @@ static NSString *flagState(const SGFlagDef *flag, id value) {
 }
 
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
-    UITableViewCell *cell = [table dequeueReusableCellWithIdentifier:@"flag"]
-        ?: [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"flag"];
+    UITableViewCell *cell = dequeue(table, @"flag");
     const SGFlagDef *flag = [self flagAt:path.row];
     NSString *key = @(flag->key);
     NSUInteger dot = [key rangeOfString:@"."].location;
     id value = _overrides[key];
 
-    UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
-    content.text = [key substringFromIndex:dot + 1];
-    content.secondaryText = [NSString stringWithFormat:@"%@ · %@", [key substringToIndex:dot], flagState(flag, value)];
-    content.textProperties.font = titleFont();
-    content.textProperties.color = value ? green() : UIColor.whiteColor;
-    content.secondaryTextProperties.font = subtitleFont();
-    content.secondaryTextProperties.color = grey();
-    content.textToSecondaryTextVerticalPadding = 0;
-    content.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(10, 16, 10, 16);
-    cell.contentConfiguration = content;
-    cell.backgroundColor = UIColor.clearColor;
-    cell.accessoryView = nil;
+    fillCell(cell, [key substringFromIndex:dot + 1],
+             [NSString stringWithFormat:@"%@ · %@", [key substringToIndex:dot], flagState(flag, value)],
+             value ? green() : nil, nil);
     cell.selectionStyle = UITableViewCellSelectionStyleDefault;
 
     if (flag->type == SGFlagBool) {
@@ -431,6 +446,333 @@ static NSString *flagState(const SGFlagDef *flag, id value) {
 
 @end
 
+#pragma mark - navbar page
+
+// What "Add a tab" offers: URIs Spotify's own router resolves to a page of its own, each with the
+// name of the SPTEncoreIcon class method that draws its glyph.
+static NSArray<NSDictionary *> *tabPresets(void) {
+    return @[
+        @{SGNavbarTitle: @"Home", SGNavbarURI: @"spotify:home", SGNavbarIcon: @"home"},
+        @{SGNavbarTitle: @"Search", SGNavbarURI: @"spotify:search", SGNavbarIcon: @"search"},
+        @{SGNavbarTitle: @"Your Library", SGNavbarURI: @"spotify:collection", SGNavbarIcon: @"collection"},
+        @{SGNavbarTitle: @"Liked Songs", SGNavbarURI: @"spotify:collection:tracks", SGNavbarIcon: @"heart"},
+        @{SGNavbarTitle: @"Playlists", SGNavbarURI: @"spotify:collection:playlists", SGNavbarIcon: @"playlist"},
+        @{SGNavbarTitle: @"Albums", SGNavbarURI: @"spotify:collection:albums", SGNavbarIcon: @"album"},
+        @{SGNavbarTitle: @"Artists", SGNavbarURI: @"spotify:collection:artists", SGNavbarIcon: @"artist"},
+        @{SGNavbarTitle: @"Podcasts", SGNavbarURI: @"spotify:collection:podcasts", SGNavbarIcon: @"podcasts"},
+        @{SGNavbarTitle: @"Audiobooks", SGNavbarURI: @"spotify:collection:audiobooks", SGNavbarIcon: @"audiobook"},
+        @{SGNavbarTitle: @"Downloads", SGNavbarURI: @"spotify:collection:downloads", SGNavbarIcon: @"downloaded"},
+        @{SGNavbarTitle: @"Your Episodes", SGNavbarURI: @"spotify:collection:your-episodes", SGNavbarIcon: @"bookmark"},
+        @{SGNavbarTitle: @"Browse", SGNavbarURI: @"spotify:browse", SGNavbarIcon: @"browse"},
+        @{SGNavbarTitle: @"New Releases", SGNavbarURI: @"spotify:new-releases", SGNavbarIcon: @"star"},
+        @{SGNavbarTitle: @"Made For You", SGNavbarURI: @"spotify:made-for-you", SGNavbarIcon: @"user"},
+        @{SGNavbarTitle: @"Concerts", SGNavbarURI: @"spotify:concerts", SGNavbarIcon: @"events"},
+        @{SGNavbarTitle: @"Queue", SGNavbarURI: @"spotify:now-playing:queue", SGNavbarIcon: @"queue"},
+        @{SGNavbarTitle: @"Create", SGNavbarURI: @"spotify:create-menu", SGNavbarIcon: @"plus"},
+    ];
+}
+
+// The list the Navbar page edits: the saved order first, then every tab of Spotify's it does not
+// name, in Spotify's order. Entries for tabs Spotify no longer has drop out.
+static NSMutableArray<NSMutableDictionary *> *navbarEntries(void) {
+    NSArray<NSString *> *stock = SGNavbarStock();
+    NSMutableArray<NSMutableDictionary *> *entries = [NSMutableArray array];
+    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    for (NSDictionary *entry in SGNavbarLayout()) {
+        NSString *ident = entry[SGNavbarID];
+        if (![ident isKindOfClass:NSString.class] || [seen containsObject:ident]) continue;
+        if (!entry[SGNavbarURI] && ![stock containsObject:ident]) continue;
+        [seen addObject:ident];
+        [entries addObject:[entry mutableCopy]];
+    }
+    for (NSString *ident in stock) {
+        if ([seen containsObject:ident]) continue;
+        [entries addObject:[@{SGNavbarID: ident, SGNavbarTitle: ident} mutableCopy]];
+    }
+    return entries;
+}
+
+// A tab of the mod's own carries an identity of its own, so the same page can sit on the bar twice
+// and renaming one does not shuffle the order.
+static void appendTab(NSDictionary *tab) {
+    NSMutableDictionary *entry = [tab mutableCopy];
+    entry[SGNavbarID] = NSUUID.UUID.UUIDString;
+    SGSetNavbarLayout([navbarEntries() arrayByAddingObject:entry]);
+}
+
+@interface SGTabPickerPage : UITableViewController
+@end
+
+@implementation SGTabPickerPage {
+    UIView *_footer;
+}
+
+- (instancetype)init {
+    if (!(self = [super initWithStyle:UITableViewStyleGrouped])) return nil;
+    self.title = @"Add a Tab";
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    self.tableView.backgroundColor = pageBackground();
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.tableView.sectionHeaderTopPadding = 0;
+    _footer = note(@"Anything Spotify can open by link works, so a playlist, an artist or a page of "
+                   "your own goes on the bar the same way. Icons are Spotify's own: home, search, "
+                   "collection, heart, playlist, album, artist, podcasts, audiobook, downloaded, "
+                   "bookmark, browse, star, user, events, queue, plus, radio, gears, spotifyLogo.");
+    self.tableView.tableFooterView = _footer;
+}
+
+- (void)viewWillLayoutSubviews {
+    [super viewWillLayoutSubviews];
+    fitNote(self.tableView, _footer, 16, 24);
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    insetForBars(self.tableView);
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)table {
+    return 2;
+}
+
+- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
+    return section == 0 ? (NSInteger)tabPresets().count : 1;
+}
+
+- (UIView *)tableView:(UITableView *)table viewForHeaderInSection:(NSInteger)section {
+    return sectionHeader(table, section == 0 ? @"Spotify's pages" : @"Anywhere else");
+}
+
+- (CGFloat)tableView:(UITableView *)table heightForHeaderInSection:(NSInteger)section {
+    return kSectionHeaderHeight;
+}
+
+- (CGFloat)tableView:(UITableView *)table heightForFooterInSection:(NSInteger)section {
+    return CGFLOAT_MIN;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
+    UITableViewCell *cell = dequeue(table, @"pick");
+    if (path.section == 0) {
+        NSDictionary *tab = tabPresets()[(NSUInteger)path.row];
+        fillCell(cell, tab[SGNavbarTitle], tab[SGNavbarURI], nil, nil);
+    } else {
+        fillCell(cell, @"Any link…", @"A name, a URI of your own and an icon", nil, @"link");
+    }
+    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    return cell;
+}
+
+- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
+    [table deselectRowAtIndexPath:path animated:YES];
+    if (path.section == 0) {
+        appendTab(tabPresets()[(NSUInteger)path.row]);
+        [self.navigationController popViewControllerAnimated:YES];
+        return;
+    }
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Any link" message:@"Where the tab goes, and the glyph on it." preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Name"; }];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"spotify:playlist:…";
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+    }];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"Icon";
+        field.text = @"star";
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+    }];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Add" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *title = alert.textFields[0].text, *uri = alert.textFields[1].text, *icon = alert.textFields[2].text;
+        if (!uri.length) return;
+        appendTab(@{SGNavbarTitle: title.length ? title : uri, SGNavbarURI: uri, SGNavbarIcon: icon.length ? icon : @"star"});
+        [self.navigationController popViewControllerAnimated:YES];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+@end
+
+// The tabs, in the order the bar shows them: drag to reorder, tap to show or hide, swipe a tab of
+// your own away. Spotify's own tabs can only be hidden, never removed.
+@interface SGNavbarPage : UITableViewController
+@end
+
+@implementation SGNavbarPage {
+    NSMutableArray<NSMutableDictionary *> *_entries;
+    UIView *_intro;
+    UIView *_footer;
+}
+
+- (instancetype)init {
+    if (!(self = [super initWithStyle:UITableViewStyleGrouped])) return nil;
+    self.title = @"Navbar";
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    self.tableView.backgroundColor = pageBackground();
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.tableView.sectionHeaderTopPadding = 0;
+    self.tableView.allowsSelectionDuringEditing = YES;
+    self.tableView.editing = YES;
+    _intro = note(@"Drag a tab by the handle to move it, tap it to show or hide it. The bar follows straight away.");
+    _footer = note(@"Spotify's own tabs are remembered by the name under their icon, so switching the "
+                   "app's language starts the order over. A tab of your own opens its link from "
+                   "wherever you are, and never lights up as the tab you are on.");
+    self.tableView.tableHeaderView = _intro;
+    self.tableView.tableFooterView = _footer;
+    _entries = navbarEntries();
+}
+
+// The Add page writes straight to the layout, so the list is read again on the way back.
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    _entries = navbarEntries();
+    [self.tableView reloadData];
+}
+
+- (void)viewWillLayoutSubviews {
+    [super viewWillLayoutSubviews];
+    fitNote(self.tableView, _intro, 24, 0);
+    fitNote(self.tableView, _footer, 16, 24);
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    insetForBars(self.tableView);
+}
+
+- (void)save {
+    SGSetNavbarLayout(_entries);
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)table {
+    return 4;
+}
+
+- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
+    return section == 1 ? (NSInteger)_entries.count : 1;
+}
+
+- (UIView *)tableView:(UITableView *)table viewForHeaderInSection:(NSInteger)section {
+    return section == 1 ? sectionHeader(table, @"Tabs") : nil;
+}
+
+- (CGFloat)tableView:(UITableView *)table heightForHeaderInSection:(NSInteger)section {
+    return section == 1 ? kSectionHeaderHeight : CGFLOAT_MIN;
+}
+
+- (CGFloat)tableView:(UITableView *)table heightForFooterInSection:(NSInteger)section {
+    return CGFLOAT_MIN;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
+    UITableViewCell *cell = dequeue(table, @"navbar");
+    switch (path.section) {
+        case 0: {
+            fillCell(cell, @"Custom navbar", @"Off leaves the bar exactly as Spotify built it", nil, nil);
+            UISwitch *toggle = [UISwitch new];
+            toggle.onTintColor = green();
+            toggle.on = SGEnabled(SGKeyNavbar);
+            [toggle addTarget:self action:@selector(toggled:) forControlEvents:UIControlEventValueChanged];
+            cell.accessoryView = toggle;
+            break;
+        }
+        case 1: {
+            NSDictionary *entry = _entries[(NSUInteger)path.row];
+            BOOL hidden = [entry[SGNavbarHidden] boolValue];
+            NSString *uri = entry[SGNavbarURI];
+            fillCell(cell, entry[SGNavbarTitle], hidden ? @"Hidden" : (uri ?: @"Spotify's own tab"),
+                     hidden ? grey() : nil, hidden ? @"eye.slash" : @"eye");
+            break;
+        }
+        case 2:
+            fillCell(cell, @"Add a tab…", @"A page of Spotify's, or any link", nil, @"plus");
+            cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+            break;
+        default:
+            fillCell(cell, @"Use Spotify's order", @"Forgets the order and the tabs you added", nil, @"arrow.uturn.backward");
+            cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+            break;
+    }
+    return cell;
+}
+
+- (BOOL)tableView:(UITableView *)table canMoveRowAtIndexPath:(NSIndexPath *)path {
+    return path.section == 1;
+}
+
+- (BOOL)tableView:(UITableView *)table canEditRowAtIndexPath:(NSIndexPath *)path {
+    return path.section == 1;
+}
+
+// Spotify's own tabs stay on the list to be switched back on; only the mod's own can go.
+- (UITableViewCellEditingStyle)tableView:(UITableView *)table editingStyleForRowAtIndexPath:(NSIndexPath *)path {
+    if (path.section != 1) return UITableViewCellEditingStyleNone;
+    return _entries[(NSUInteger)path.row][SGNavbarURI] ? UITableViewCellEditingStyleDelete : UITableViewCellEditingStyleNone;
+}
+
+- (NSIndexPath *)tableView:(UITableView *)table targetIndexPathForMoveFromRowAtIndexPath:(NSIndexPath *)from toProposedIndexPath:(NSIndexPath *)to {
+    return to.section == 1 ? to : from;
+}
+
+- (void)tableView:(UITableView *)table moveRowAtIndexPath:(NSIndexPath *)from toIndexPath:(NSIndexPath *)to {
+    NSMutableDictionary *entry = _entries[(NSUInteger)from.row];
+    [_entries removeObjectAtIndex:(NSUInteger)from.row];
+    [_entries insertObject:entry atIndex:(NSUInteger)to.row];
+    [self save];
+}
+
+- (void)tableView:(UITableView *)table commitEditingStyle:(UITableViewCellEditingStyle)style forRowAtIndexPath:(NSIndexPath *)path {
+    if (style != UITableViewCellEditingStyleDelete) return;
+    [_entries removeObjectAtIndex:(NSUInteger)path.row];
+    [self save];
+    [table deleteRowsAtIndexPaths:@[path] withRowAnimation:UITableViewRowAnimationAutomatic];
+}
+
+- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
+    [table deselectRowAtIndexPath:path animated:YES];
+    if (path.section == 1) {
+        NSMutableDictionary *entry = _entries[(NSUInteger)path.row];
+        entry[SGNavbarHidden] = [entry[SGNavbarHidden] boolValue] ? nil : @YES;
+        [self save];
+        [table reloadRowsAtIndexPaths:@[path] withRowAnimation:UITableViewRowAnimationNone];
+    } else if (path.section == 2) {
+        [self.navigationController pushViewController:[SGTabPickerPage new] animated:YES];
+    } else if (path.section == 3) {
+        [self reset];
+    }
+}
+
+- (void)toggled:(UISwitch *)toggle {
+    SGSetEnabled(SGKeyNavbar, toggle.on);
+}
+
+- (void)reset {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Use Spotify's order"
+                                                                  message:@"Every tab of Spotify's comes back where Spotify put it, and the tabs you added go."
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Reset" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        SGSetNavbarLayout(@[]);
+        self->_entries = navbarEntries();
+        [self.tableView reloadData];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+@end
+
 static NSString *const kRestart = @"Changes apply after you restart Spotify.";
 
 static UIViewController *uiTweaksPage(void) {
@@ -448,6 +790,9 @@ static UIViewController *uiTweaksPage(void) {
 
 static UIViewController *homePage(void) {
     return [[SGModPage alloc] initWithTitle:@"Home" intro:kRestart sections:@[
+        section(@"Background", @[
+            optionRow(@"Gradient", @"A green wash behind the top of the page, fading into the background", SGKeyHomeGradient),
+        ]),
         section(@"Hide", @[
             hideRow(@"Filter pills", @"Music and Podcasts next to your avatar", SGHideHomePills),
             hideRow(@"Shortcuts grid", @"The tiles at the top", SGHideHomeShortcuts),
@@ -462,7 +807,8 @@ static UIViewController *nowPlayingPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Now Playing" intro:kRestart sections:@[
         section(@"Liquid Glass", @[
             switchRow(@"Now playing bar", @"Glass card with round artwork", SGKeyNowPlayingBar),
-            switchRow(@"Player controls", @"Glass behind the buttons of the full screen player", SGKeyPlayer),
+            switchRow(@"Header buttons", @"Glass circles behind close and more, over the artwork", SGKeyPlayer),
+            switchRow(@"Lyrics", @"Glass card, and the page it expands into", SGKeyLyricsCard),
         ]),
         section(@"Spotify's flags", @[
             flagRow(@"Sheet style player", @"ios-feature-nowplaying.sheet_style_npv"),
@@ -509,7 +855,8 @@ static UIViewController *modSettingsPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Mod Settings" intro:nil sections:@[
         section(nil, @[
             pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
-            pageRow(@"Home", @"Hide sections of the Home tab", ^UIViewController *{ return homePage(); }),
+            pageRow(@"Navbar", @"Reorder the tabs, hide them, add your own", ^UIViewController *{ return [SGNavbarPage new]; }),
+            pageRow(@"Home", @"Gradient background, hide sections of the Home tab", ^UIViewController *{ return homePage(); }),
             pageRow(@"Now Playing", @"Glass, Spotify's player flags, hide buttons and cards", ^UIViewController *{ return nowPlayingPage(); }),
             pageRow(@"All flags", @"Search and force any of Spotify's remote-config flags", ^UIViewController *{ return [SGFlagsPage new]; }),
         ]),
@@ -535,7 +882,7 @@ static UIViewController *modSettingsPage(void) {
     _title.text = @"Mod Settings";
     _title.textColor = UIColor.whiteColor;
     _subtitle = [UILabel new];
-    _subtitle.text = @"UI Tweaks • Home • Now Playing • Flags";
+    _subtitle.text = @"UI Tweaks • Navbar • Home • Now Playing • Flags";
     _subtitle.textColor = grey();
     _chevron = symbol(@"chevron.right", 11, UIImageSymbolWeightSemibold, 12);
     for (UIView *v in @[_icon, _title, _subtitle, _chevron]) [self addSubview:v];

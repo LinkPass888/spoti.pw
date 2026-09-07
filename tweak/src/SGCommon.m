@@ -3,6 +3,22 @@
 __weak UIView *sg_nowPlayingRoot = nil;
 __weak UIView *sg_tabBarRoot = nil;
 __weak UIView *sg_nowPlayingCard = nil;
+__weak UIView *sg_lyricsCardRoot = nil;
+__weak UIView *sg_lyricsPageRoot = nil;
+__weak UIView *sg_homeRoot = nil;
+
+BOOL sg_nowPlayingStock = NO;
+CGColorRef sg_nowPlayingCardColor = NULL;
+
+// ui/Repaint.x takes the album colour off the card on every repaint; the expand animation of the
+// full screen player needs it back, so the last one is kept. Only the main thread writes it, so
+// the read in ui/NowPlayingBar.x cannot see a released colour.
+void SGRememberCardColor(CGColorRef color) {
+    if (!NSThread.isMainThread || color == sg_nowPlayingCardColor) return;
+    CGColorRef kept = color ? CGColorRetain(color) : NULL;
+    CGColorRelease(sg_nowPlayingCardColor);
+    sg_nowPlayingCardColor = kept;
+}
 
 #pragma mark - logging
 
@@ -34,9 +50,11 @@ void SGRequireClasses(NSArray<NSString *> *names) {
 NSString *const SGKeyNowPlayingBar = @"spotifyglass.nowPlayingBar";
 NSString *const SGKeyTabBar = @"spotifyglass.tabBar";
 NSString *const SGKeyPlayer = @"spotifyglass.player";
+NSString *const SGKeyLyricsCard = @"spotifyglass.lyricsCard";
 NSString *const SGKeySearchField = @"spotifyglass.searchField";
 NSString *const SGKeySpotifyGlass = @"spotifyglass.spotifyGlass";
 NSString *const SGKeyAmoled = @"spotifyglass.amoled";
+NSString *const SGKeyHomeGradient = @"spotifyglass.homeGradient";
 
 BOOL SGFlag(NSString *key, BOOL fallback) {
     id value = [NSUserDefaults.standardUserDefaults objectForKey:key];
@@ -53,6 +71,39 @@ BOOL SGHidden(NSString *key) {
 
 void SGSetEnabled(NSString *key, BOOL on) {
     [NSUserDefaults.standardUserDefaults setBool:on forKey:key];
+}
+
+NSString *const SGKeyNavbar = @"spotifyglass.navbar";
+NSString *const SGNavbarID = @"id";
+NSString *const SGNavbarTitle = @"title";
+NSString *const SGNavbarURI = @"uri";
+NSString *const SGNavbarIcon = @"icon";
+NSString *const SGNavbarHidden = @"hidden";
+
+static NSString *const kNavbarLayout = @"spotifyglass.navbar.layout";
+static NSString *const kNavbarStock = @"spotifyglass.navbar.stock";
+
+// Only property list types go in, so a corrupt read cannot be anything but an array of dictionaries.
+static NSArray *listOfKind(NSString *key, Class kind) {
+    NSArray *list = [NSUserDefaults.standardUserDefaults arrayForKey:key];
+    for (id item in list) if (![item isKindOfClass:kind]) return @[];
+    return list ?: @[];
+}
+
+NSArray<NSDictionary *> *SGNavbarLayout(void) {
+    return listOfKind(kNavbarLayout, NSDictionary.class);
+}
+
+void SGSetNavbarLayout(NSArray<NSDictionary *> *layout) {
+    [NSUserDefaults.standardUserDefaults setObject:layout ?: @[] forKey:kNavbarLayout];
+}
+
+NSArray<NSString *> *SGNavbarStock(void) {
+    return listOfKind(kNavbarStock, NSString.class);
+}
+
+void SGSetNavbarStock(NSArray<NSString *> *stock) {
+    [NSUserDefaults.standardUserDefaults setObject:stock ?: @[] forKey:kNavbarStock];
 }
 
 NSString *const SGFlagOverridePrefix = @"spotifyglass.flag.";
@@ -119,6 +170,17 @@ BOOL SGIsLightColor(CGColorRef color) {
     return YES;
 }
 
+// Spotify's base surface: the neutral #121212 it paints its pages with, or the black ui/Amoled.x
+// turns that into. Lighter greys (#1F1F1F placeholders, #292929 cards) and translucent paint stay.
+BOOL SGIsBaseSurface(CGColorRef color) {
+    if (!color || CFGetTypeID(color) != CGColorGetTypeID() || CGColorGetAlpha(color) < 0.95) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    if (n == 2) return c[0] <= 0.10;
+    if (n < 3) return NO;
+    return c[0] <= 0.10 && fabs(c[0] - c[1]) < 0.02 && fabs(c[1] - c[2]) < 0.02;
+}
+
 BOOL SGHasClass(UIView *root, NSString *marker) {
     __block BOOL found = NO;
     SGForEachView(root, ^(UIView *v) {
@@ -127,7 +189,8 @@ BOOL SGHasClass(UIView *root, NSString *marker) {
     return found;
 }
 
-// The first wide stack view under `host` with at least two arranged children: a player row.
+// The first wide stack view under `host` with at least two arranged children: a player row, or
+// the row of items in the tab bar.
 UIStackView *SGRowIn(UIView *host) {
     __block UIStackView *row = nil;
     SGForEachView(host, ^(UIView *v) {

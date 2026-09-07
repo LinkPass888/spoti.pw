@@ -37,6 +37,7 @@ BOOL SGKeepsColor(UIView *view);
 void SGStripBackgrounds(UIView *view);
 BOOL SGIsVisibleColor(CGColorRef color);
 BOOL SGIsLightColor(CGColorRef color);
+BOOL SGIsBaseSurface(CGColorRef color);
 
 BOOL SGHasClass(UIView *root, NSString *marker);
 UIStackView *SGRowIn(UIView *host);
@@ -51,18 +52,48 @@ void SGShapeGlass(UIView *glass, CGFloat radius, BOOL capsule);
 extern __weak UIView *sg_nowPlayingRoot;
 extern __weak UIView *sg_tabBarRoot;
 extern __weak UIView *sg_nowPlayingCard;
+extern __weak UIView *sg_lyricsCardRoot;
+extern __weak UIView *sg_lyricsPageRoot;
+extern __weak UIView *sg_homeRoot;  // ui/HomeGradient.x, the base surface only
 BOOL SGLooksLikeCard(UIView *view, CGColorRef color);
+
+// The full screen player morphs the now playing bar's own card into the cover art, so for the
+// length of that animation ui/NowPlayingBar.x hands the bar back to Spotify: the flag lets the
+// album colour through ui/Repaint.x again, and the last colour it took off is kept to restore.
+extern BOOL sg_nowPlayingStock;
+extern CGColorRef sg_nowPlayingCardColor;
+void SGRememberCardColor(CGColorRef color);
 
 // Switches from ui/Settings.x, one per tweak; an unset switch is on.
 extern NSString *const SGKeyNowPlayingBar;
 extern NSString *const SGKeyTabBar;
 extern NSString *const SGKeyPlayer;
+extern NSString *const SGKeyLyricsCard;
 extern NSString *const SGKeySearchField;
 extern NSString *const SGKeySpotifyGlass;
 extern NSString *const SGKeyAmoled;
+extern NSString *const SGKeyHomeGradient;  // off unless it is asked for
 BOOL SGFlag(NSString *key, BOOL fallback);
 BOOL SGEnabled(NSString *key);
 void SGSetEnabled(NSString *key, BOOL on);
+
+// The tab bar's own composition, from ui/Navbar.x and the Navbar settings page: an ordered list
+// of entries, each a dictionary. An entry with a URI is a tab of the mod's own; one without names
+// one of Spotify's, by the label under its icon. No list at all is Spotify's order, all shown.
+extern NSString *const SGKeyNavbar;
+extern NSString *const SGNavbarID;      // NSString, the entry's identity
+extern NSString *const SGNavbarTitle;   // NSString, the name in the settings list and under the icon
+extern NSString *const SGNavbarURI;     // NSString, the mod's own tabs only: what a tap opens
+extern NSString *const SGNavbarIcon;    // NSString, an SPTEncoreIcon class method such as "podcasts"
+extern NSString *const SGNavbarHidden;  // NSNumber
+NSArray<NSDictionary *> *SGNavbarLayout(void);
+void SGSetNavbarLayout(NSArray<NSDictionary *> *layout);
+// Spotify's own tabs in Spotify's order, as ui/Navbar.x last saw them on the bar.
+NSArray<NSString *> *SGNavbarStock(void);
+void SGSetNavbarStock(NSArray<NSString *> *stock);
+
+// ui/Navbar.x, called from the tab bar's layout pass in ui/TabBar.x.
+void SGComposeTabBar(UIView *tabBar);
 
 // Spotify's remote-config flags, generated into SGFlagList.m by scripts/extract-flags.py.
 typedef NS_ENUM(NSInteger, SGFlagType) { SGFlagUnknown, SGFlagBool, SGFlagInt, SGFlagEnum };

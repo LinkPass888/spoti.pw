@@ -1,5 +1,6 @@
-// Tab bar: gradient and labels go, icons centre, a glass capsule sits behind Home, Search and
-// Library and a glass circle behind Create. Spotify maps taps by position, so the item order stays.
+// Tab bar: gradient and labels go, icons centre, a glass capsule sits behind the tabs and a glass
+// circle behind Create when Create is the last of them. ui/Navbar.x owns which items are on the
+// bar and in what order; this file only paints whatever it left there.
 //
 // Tree (trees/home.txt): NavigationUI_TabBarImpl.TabBarView > TabBarCompactView > TabBarGradientView
 //   + UIStackView 402x49 of four ElementContentView<TabBarItemElement> 100x49, each with an
@@ -10,16 +11,14 @@ static const CGFloat kPillHeight = 56;
 static const CGFloat kCircleSize = 52;
 static char kPillKey, kCircleKey;
 
+// The items the bar shows, left to right: the stack view's own arranged order, minus the ones
+// ui/Navbar.x switched off.
 static NSArray<UIView *> *tabItems(UIView *tabBar) {
     NSMutableArray<UIView *> *items = [NSMutableArray array];
-    SGForEachView(tabBar, ^(UIView *v) {
-        if (v != tabBar && v.bounds.size.width >= 20 && [NSStringFromClass(v.class) containsString:@"TabBarItemElement"]) [items addObject:v];
-    });
-    // Element wrappers nest; keep the outermost per item.
-    return [items filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(UIView *v, id _) {
-        for (UIView *u = v.superview; u && u != tabBar; u = u.superview) if ([items containsObject:u]) return NO;
-        return YES;
-    }]];
+    for (UIView *item in SGRowIn(tabBar).arrangedSubviews) {
+        if (!item.hidden && item.bounds.size.width >= 20) [items addObject:item];
+    }
+    return items;
 }
 
 static void styleTabBar(UIView *tabBar) {
@@ -33,22 +32,28 @@ static void styleTabBar(UIView *tabBar) {
     dispatch_once(&once, ^{ SGLog(@"tab bar %@ with %lu items", tabBar.class, (unsigned long)items.count); });
     if (items.count < 2) return;
 
-    NSArray<UIView *> *sorted = [items sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-        return [@(SGFrameIn(a, tabBar).origin.x) compare:@(SGFrameIn(b, tabBar).origin.x)];
-    }];
-    CGRect first = SGFrameIn(sorted.firstObject, tabBar);
-    CGRect lastMain = SGFrameIn(sorted[sorted.count - 2], tabBar);
-    CGRect last = SGFrameIn(sorted.lastObject, tabBar);
+    // Create is a round button of its own, but only where Spotify puts it: last. Moved in among
+    // the others by ui/Navbar.x it joins them under the capsule instead.
+    BOOL circled = SGHasClass(items.lastObject, @"CreateMenu");
+    NSArray<UIView *> *capsuled = circled ? [items subarrayWithRange:NSMakeRange(0, items.count - 1)] : items;
+    CGRect first = SGFrameIn(items.firstObject, tabBar);
     CGFloat midY = CGRectGetMidY(first);
 
     UIVisualEffectView *pill = SGGlassFor(tabBar, &kPillKey);
-    CGFloat left = MAX(12, first.origin.x + 12);
-    pill.frame = CGRectMake(left, midY - kPillHeight / 2, CGRectGetMaxX(lastMain) + 4 - left, kPillHeight);
-    SGShapeGlass(pill, kPillHeight / 2, YES);
+    pill.hidden = capsuled.count == 0;
+    if (capsuled.count) {
+        CGFloat left = MAX(12, first.origin.x + 12);
+        pill.frame = CGRectMake(left, midY - kPillHeight / 2, CGRectGetMaxX(SGFrameIn(capsuled.lastObject, tabBar)) + 4 - left, kPillHeight);
+        SGShapeGlass(pill, kPillHeight / 2, YES);
+    }
 
     UIVisualEffectView *circle = SGGlassFor(tabBar, &kCircleKey);
-    circle.frame = CGRectMake(CGRectGetMidX(last) - kCircleSize / 2, midY - kCircleSize / 2, kCircleSize, kCircleSize);
-    SGShapeGlass(circle, kCircleSize / 2, YES);
+    circle.hidden = !circled;
+    if (circled) {
+        CGRect last = SGFrameIn(items.lastObject, tabBar);
+        circle.frame = CGRectMake(CGRectGetMidX(last) - kCircleSize / 2, midY - kCircleSize / 2, kCircleSize, kCircleSize);
+        SGShapeGlass(circle, kCircleSize / 2, YES);
+    }
 }
 
 // Items lay out their own icon and label, after the bar; hide the label, centre the icon, then
@@ -73,6 +78,9 @@ static void styleTabItem(UIView *item) {
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (void)layoutSubviews {
     %orig;
+    // After Spotify's own pass, so whatever it did to the row of items is undone before the glass
+    // is measured against it; the layoutIfNeeded below gives the moved items their frames.
+    SGComposeTabBar((UIView *)self);
     for (UIView *sub in ((UIView *)self).subviews) [sub layoutIfNeeded];
     styleTabBar((UIView *)self);
 }

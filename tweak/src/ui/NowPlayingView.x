@@ -1,15 +1,22 @@
-// Full screen player: glass behind the header buttons, each transport control except play, and
-// the footer buttons. Spotify's blurred artwork background stays underneath.
+// Full screen player: glass where Liquid Glass belongs and nowhere else.
 //
-// Tree (trees/now-playing.txt): NowPlaying_ModesImpl units, each a child controller whose view holds
-// one UIStackView row: header (chevron, title, more), playback controls (shuffle, previous, play,
-// next, repeat), footer (connect, share, queue).
+// Glass is the navigation layer floating over content, so only the header's two round buttons get
+// a pane, the way the Music app keeps its chrome. The playlist name between them is a label, and
+// shuffle, repeat, previous, next and the footer (connect, share, queue) are bare glyphs over the
+// artwork next to Spotify's white play disc: a pane each turned both rows into a strip of glass
+// discs sampling one another, which is the one thing the material cannot do. The cards below the
+// player are surfaces rather than controls; the lyrics one is in ui/Lyrics.x.
+//
+// Tree (trees/now-playing.txt): NowPlaying_ModesImpl units, each a child controller whose view
+// holds one UIStackView row; the header row is chevron 48x48, playlist name 110x48, more 48x48.
 #import "SGCommon.h"
 
-// A pane per direct child of the unit's row: circles for square children, capsules for wide ones.
-// `fixedSize` forces every pane to one size; children containing a `skip` class get none, nor do
-// the ones ui/Declutter.x made invisible.
-static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFloat fixedSize, NSString *skip) {
+static const CGFloat kButtonMin = 36, kButtonMax = 48;
+
+// A glass circle per round button in the unit's row: children about as wide as they are tall.
+// The playlist name is 110 wide against 48 tall, so it keeps no pane, and neither do the children
+// ui/Declutter.x made invisible.
+static void glassBehindRoundButtons(UIViewController *unit) {
     if (!SGEnabled(SGKeyPlayer)) return;
     UIView *host = unit.viewIfLoaded;
     UIStackView *row = SGRowIn(host);
@@ -19,14 +26,11 @@ static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFl
     for (UIView *child in row.arrangedSubviews) {
         CGRect f = SGFrameIn(child, host);
         if (child.hidden || child.alpha == 0 || f.size.width < 20 || f.size.height < 20) continue;
-        __block BOOL skipped = NO;
-        if (skip) SGForEachView(child, ^(UIView *v) { if ([NSStringFromClass(v.class) containsString:skip]) skipped = YES; });
-        if (skipped) continue;
-        CGFloat height = fixedSize ?: MAX(minSize, MIN(f.size.height, 48));
-        CGFloat width = fixedSize ?: MAX(f.size.width, height);
+        if (f.size.width > f.size.height * 1.4) continue;
+        CGFloat side = MAX(kButtonMin, MIN(MAX(f.size.width, f.size.height), kButtonMax));
         UIVisualEffectView *glass = SGGlassAt(host, index++);
-        glass.frame = CGRectMake(CGRectGetMidX(f) - width / 2, CGRectGetMidY(f) - height / 2, width, height);
-        SGShapeGlass(glass, height / 2, YES);
+        glass.frame = CGRectMake(CGRectGetMidX(f) - side / 2, CGRectGetMidY(f) - side / 2, side, side);
+        SGShapeGlass(glass, side / 2, YES);
     }
     SGHideGlassFrom(host, index);
 }
@@ -34,29 +38,11 @@ static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFl
 %hook _TtC20NowPlaying_ModesImpl18HeaderElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
-    glassBehindRowChildren((UIViewController *)self, 36, 0, nil);
-}
-%end
-
-%hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
-- (void)viewDidLayoutSubviews {
-    %orig;
-    glassBehindRowChildren((UIViewController *)self, 0, 52, @"PlayButton");
-}
-%end
-
-%hook _TtC20NowPlaying_ModesImpl18FooterElementsUnit
-- (void)viewDidLayoutSubviews {
-    %orig;
-    glassBehindRowChildren((UIViewController *)self, 36, 0, nil);
+    glassBehindRoundButtons((UIViewController *)self);
 }
 %end
 
 %ctor {
     %init;
-    SGRequireClasses(@[
-        @"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit",
-        @"_TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit",
-        @"_TtC20NowPlaying_ModesImpl18FooterElementsUnit",
-    ]);
+    SGRequireClasses(@[@"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit"]);
 }
