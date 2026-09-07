@@ -1,4 +1,3 @@
-!trees/screens.txt
 *.ipa
 *.mobileprovision
 *.p12
@@ -13,3 +12,4 @@ trees/*.txt
 tweak/.theos/
 tweak/obj/
 tweak/packages/
+tweak/src/SGFlagList.m

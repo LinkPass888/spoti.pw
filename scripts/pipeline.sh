@@ -5,6 +5,8 @@
 #
 # --install hands the result to install.sh (sign with your certificate, push to the plugged-in iPhone).
 #
+# The IPA is yours to supply: drop a decrypted Spotify .ipa in ipa/ and the Makefile finds it.
+#
 # Needs: Theos in $THEOS (default ~/theos) with an iPhoneOS SDK in $THEOS/sdks,
 # gmake, ldid, dpkg-deb (brew) and cyan (uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw").
 set -euo pipefail
@@ -14,6 +16,7 @@ THEOS="${THEOS:-$HOME/theos}"
 FLEX_DEB="$ROOT/vendor/com.hopeless.autoflex_0.0.1_iphoneos-arm.deb"
 # Installs next to the real Spotify instead of replacing it. Override: BUNDLE_ID=com.spotify.client make build
 BUNDLE_ID="${BUNDLE_ID:-com.spotify.client2}"
+mkdir -p "$ROOT/out"
 
 IN="" OUT="" WITH_FLEX=1 INSTALL=0
 while [ $# -gt 0 ]; do
@@ -21,11 +24,12 @@ while [ $# -gt 0 ]; do
     -o) OUT="$2"; shift 2 ;;
     --no-flex) WITH_FLEX=0; shift ;;
     --install) INSTALL=1; shift ;;
-    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
     *) IN="$1"; shift ;;
   esac
 done
-[ -f "$IN" ] || { echo "usage: $0 <decrypted.ipa> [-o out.ipa] [--no-flex] [--install]" >&2; exit 1; }
+[ -n "$IN" ] || { echo "no IPA: put a decrypted Spotify .ipa in ipa/, or pass one (make build IPA=path.ipa)" >&2; exit 1; }
+[ -f "$IN" ] || { echo "no such file: $IN" >&2; exit 1; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing $1 -> $2" >&2; exit 1; }; }
 need gmake "brew install make"
@@ -41,10 +45,20 @@ rm -f "$ROOT/out/.info.plist"
 OUT="${OUT:-$ROOT/out/Spotify-$VERSION-glass.ipa}"
 echo "==> Spotify $VERSION -> $OUT"
 
+# The flag table is generated rather than committed, so it always matches the IPA being built.
+if [ ! -f "$ROOT/tweak/src/SGFlagList.m" ]; then
+  echo "==> extracting the flag table (once, about 40 s)"
+  "$ROOT/scripts/extract-flags.py" "$IN"
+fi
+
 echo "==> building tweak"
-# No Xcode on this machine: Theos would resolve tools through `xcrun -sdk iphoneos`, so name the CLT ones directly.
-export THEOS TARGET_CC=clang TARGET_CXX=clang++ TARGET_LD=clang++ \
-       TARGET_STRIP=strip TARGET_LIPO=lipo TARGET_CODESIGN_ALLOCATE=codesign_allocate TARGET_LIBTOOL=libtool
+export THEOS
+# Theos resolves its toolchain through `xcrun -sdk iphoneos`, which needs full Xcode. With only the
+# Command Line Tools installed, name the tools directly instead.
+if ! xcrun -sdk iphoneos --find clang >/dev/null 2>&1; then
+  export TARGET_CC=clang TARGET_CXX=clang++ TARGET_LD=clang++ \
+         TARGET_STRIP=strip TARGET_LIPO=lipo TARGET_CODESIGN_ALLOCATE=codesign_allocate TARGET_LIBTOOL=libtool
+fi
 gmake -C "$ROOT/tweak" clean package >/dev/null
 TWEAK_DEB="$(ls -t "$ROOT"/tweak/packages/*.deb | head -1)"
 echo "    $TWEAK_DEB"
