@@ -694,7 +694,6 @@ static void appendTab(NSDictionary *tab) {
 @implementation SGNavbarPage {
     NSMutableArray<NSMutableDictionary *> *_entries;
     UIView *_intro;
-    UIView *_footer;
 }
 
 - (instancetype)init {
@@ -712,11 +711,7 @@ static void appendTab(NSDictionary *tab) {
     self.tableView.allowsSelectionDuringEditing = YES;
     self.tableView.editing = YES;
     _intro = note(@"Drag a tab by the handle to move it, tap it to show or hide it. The bar follows straight away.");
-    _footer = note(@"Spotify's own tabs are remembered by the name under their icon, so switching the "
-                   "app's language starts the order over. A tab of your own opens its link from "
-                   "wherever you are, and never lights up as the tab you are on.");
     self.tableView.tableHeaderView = _intro;
-    self.tableView.tableFooterView = _footer;
     _entries = navbarEntries();
 }
 
@@ -730,7 +725,6 @@ static void appendTab(NSDictionary *tab) {
 - (void)viewWillLayoutSubviews {
     [super viewWillLayoutSubviews];
     fitNote(self.tableView, _intro, 24, 0);
-    fitNote(self.tableView, _footer, 16, 24);
 }
 
 - (void)viewDidLayoutSubviews {
@@ -889,7 +883,7 @@ static UIViewController *homePage(void) {
             hideRow(@"Preview cards", @"Album, playlist and video previews with a play button", SGHideHomePreviews),
             hideRow(@"DJ card", @"Your own personal DJ", SGHideHomeDJ),
         ]),
-    ] footer:@"The shelves (Your top mixes, Jump back in, Recents and the rest) all share one card type, so they cannot be told apart yet."];
+    ] footer:nil];
 }
 
 static UIViewController *playlistPage(void) {
@@ -911,7 +905,7 @@ static UIViewController *playlistPage(void) {
             hideRow(@"Curation pills", @"Add, Mix, Video, Edit, Sort and the rest", SGHidePlaylistPills),
             hideRow(@"Find and sort bar", @"Find on page and Sort, under the header", SGHidePlaylistFind),
         ]),
-    ] footer:@"Hiding the cover pulls the rest of the header up into the space it stood in. Albums and artists are pages of another kind and keep everything."];
+    ] footer:nil];
 }
 
 static UIViewController *nowPlayingPage(void) {
@@ -957,7 +951,7 @@ static UIViewController *nowPlayingPage(void) {
             hideRow(@"Merch", @"The artist's shop", SGHideMerch),
             hideRow(@"Recommendations", @"\"Artist: what you might like\", the episode and track rows", SGHideRecommendations),
         ]),
-    ] footer:@"A flag switch forces one of Spotify's remote-config flags on; off leaves whatever Spotify sends. All flags lists every one of them."];
+    ] footer:nil];
 }
 
 static UIViewController *privacyPage(void) {
@@ -978,13 +972,12 @@ static UIViewController *privacyPage(void) {
         section(nil, @[
             actionRow(@"Reset the counters", @"Start counting from zero", ^{ SGResetBlocked(); }),
         ]),
-    ] footer:@"Spotify's own events go to the gabo receiver, the rest belong to the SDKs it carries: Firebase, Crashlytics, the Facebook SDK, Branch, Comscore, Segment and Google. Playback, search, sign-in and shared links are not on the list. Only what the app sends through NSURLSession can be counted, so anything its core sends over sockets of its own passes unseen."];
+    ] footer:nil];
 }
 
 static UIViewController *modSettingsPage(void) {
     NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-    NSString *about = [NSString stringWithFormat:@"spotifyglass %s · Spotify %@\n"
-                       "Liquid Glass and other UI tweaks for the Spotify iOS app, a Theos tweak injected into the decrypted IPA.", SG_VERSION, spotify];
+    NSString *about = [NSString stringWithFormat:@"spotifyglass %s · Spotify %@", SG_VERSION, spotify];
     return [[SGModPage alloc] initWithTitle:@"Mod Settings" intro:nil sections:@[
         section(nil, @[
             pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
