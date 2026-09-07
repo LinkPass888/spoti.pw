@@ -38,9 +38,17 @@ NSString *const SGKeySearchField = @"spotifyglass.searchField";
 NSString *const SGKeySpotifyGlass = @"spotifyglass.spotifyGlass";
 NSString *const SGKeyAmoled = @"spotifyglass.amoled";
 
-BOOL SGEnabled(NSString *key) {
+BOOL SGFlag(NSString *key, BOOL fallback) {
     id value = [NSUserDefaults.standardUserDefaults objectForKey:key];
-    return value ? [value boolValue] : YES;
+    return value ? [value boolValue] : fallback;
+}
+
+BOOL SGEnabled(NSString *key) {
+    return SGFlag(key, YES);
+}
+
+BOOL SGHidden(NSString *key) {
+    return SGFlag(key, NO);
 }
 
 void SGSetEnabled(NSString *key, BOOL on) {
@@ -99,6 +107,23 @@ BOOL SGIsLightColor(CGColorRef color) {
     return YES;
 }
 
+BOOL SGHasClass(UIView *root, NSString *marker) {
+    __block BOOL found = NO;
+    SGForEachView(root, ^(UIView *v) {
+        if (!found && [NSStringFromClass(v.class) containsString:marker]) found = YES;
+    });
+    return found;
+}
+
+// The first wide stack view under `host` with at least two arranged children: a player row.
+UIStackView *SGRowIn(UIView *host) {
+    __block UIStackView *row = nil;
+    SGForEachView(host, ^(UIView *v) {
+        if (!row && [v isKindOfClass:UIStackView.class] && v.bounds.size.width > 200 && ((UIStackView *)v).arrangedSubviews.count >= 2) row = (UIStackView *)v;
+    });
+    return row;
+}
+
 BOOL SGLooksLikeCard(UIView *view, CGColorRef color) {
     CGSize size = view.bounds.size;
     return size.height >= 40 && size.height <= 140 && size.width >= 200 && SGIsVisibleColor(color);
@@ -130,8 +155,9 @@ UIVisualEffectView *SGGlassFor(UIView *host, const void *key) {
 }
 
 // Several panes on one host, addressed by index.
+static char kPanesKey;
+
 UIVisualEffectView *SGGlassAt(UIView *host, NSUInteger index) {
-    static char kPanesKey;
     NSMutableArray<UIVisualEffectView *> *panes = objc_getAssociatedObject(host, &kPanesKey);
     if (!panes) {
         panes = [NSMutableArray array];
@@ -139,8 +165,15 @@ UIVisualEffectView *SGGlassAt(UIView *host, NSUInteger index) {
     }
     while (panes.count <= index) [panes addObject:newPane()];
     UIVisualEffectView *glass = panes[index];
+    glass.hidden = NO;
     if (glass.superview != host) [host insertSubview:glass atIndex:0];
     return glass;
+}
+
+// Panes past `count` belonged to children that are gone now.
+void SGHideGlassFrom(UIView *host, NSUInteger count) {
+    NSArray<UIVisualEffectView *> *panes = objc_getAssociatedObject(host, &kPanesKey);
+    for (NSUInteger i = count; i < panes.count; i++) panes[i].hidden = YES;
 }
 
 // Glass takes its shape from cornerConfiguration on iOS 26; layer.cornerRadius is the fallback.

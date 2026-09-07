@@ -23,6 +23,8 @@ static void appendTree(UIView *view, NSUInteger depth, NSMutableString *out) {
     if (view.hidden) [line appendString:@" hidden"];
     if (view.layer.mask) [line appendString:@" masked"];
     if (view.clipsToBounds) [line appendString:@" clips"];
+    if (view.accessibilityIdentifier.length) [line appendFormat:@" id=%@", view.accessibilityIdentifier];
+    if ([view isKindOfClass:UIControl.class] && view.accessibilityLabel.length) [line appendFormat:@" a11y=\"%@\"", view.accessibilityLabel];
     if ([view isKindOfClass:UILabel.class]) {
         UILabel *label = (UILabel *)view;
         [line appendFormat:@" \"%@\" %.0fpt %@", label.text, label.font.pointSize, hexColor(label.textColor.CGColor)];

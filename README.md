@@ -7,7 +7,7 @@ signed and installed from the Mac.
 
 ## Layout
 
-    tweak/src/ui/*.x   the tweaks: NowPlayingBar, TabBar, NowPlayingView, SearchField, LiquidGlassFlags, Amoled, Repaint, Settings
+    tweak/src/ui/*.x   the tweaks: NowPlayingBar, TabBar, NowPlayingView, SearchField, LiquidGlassFlags, Amoled, Declutter, Repaint, Settings
     tweak/src/SG*      shared helpers (glass panes, view walking, logging, screen dumps)
     scripts/           pipeline.sh (build + inject), install.sh (sign + install), record-trees.py, dump-log.sh
     trees/             recorded view trees, one per screen; the input for every new tweak
@@ -23,7 +23,9 @@ signed and installed from the Mac.
     make trees      # record view trees screen by screen (FLEX build open on the phone, USB)
     make log        # stream [spotifyglass] log lines from the phone
 
-In the app, Settings → Mod Settings → UI Tweaks has a switch per tweak; a change shows after Spotify restarts.
+In the app, Settings → Mod Settings has a switch per tweak under UI Tweaks, and the two Declutter
+pages hide buttons and cards of the full screen player and sections of Home; a change shows after
+Spotify restarts.
 
 Needs Theos in `~/theos` with an iPhoneOS SDK, Homebrew `make ldid dpkg zsign ideviceinstaller
 libimobiledevice`, and cyan (`uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"`).

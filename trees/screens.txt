@@ -10,6 +10,7 @@ now-playing | tap the now playing bar to open the full
 now-playing 2 more scrolled| tap the now playing bar to open
 now-playing 3 more scrolled| tap the now playing bar to open
 now-playing 4 more scrolled| tap the now playing bar to open the full player, wait 2 s
+now-playing 5 more scrolled| tap the now playing bar to open the full player, wait 2 s
 playlist list | open the playlist list
 playlist | open any playlist
 album | open any album

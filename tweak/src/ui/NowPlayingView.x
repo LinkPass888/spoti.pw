@@ -7,20 +7,18 @@
 #import "SGCommon.h"
 
 // A pane per direct child of the unit's row: circles for square children, capsules for wide ones.
-// `fixedSize` forces every pane to one size; children containing a `skip` class get none.
+// `fixedSize` forces every pane to one size; children containing a `skip` class get none, nor do
+// the ones ui/Declutter.x made invisible.
 static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFloat fixedSize, NSString *skip) {
     if (!SGEnabled(SGKeyPlayer)) return;
     UIView *host = unit.viewIfLoaded;
-    __block UIStackView *row = nil;
-    SGForEachView(host, ^(UIView *v) {
-        if (!row && [v isKindOfClass:UIStackView.class] && v.bounds.size.width > 200 && ((UIStackView *)v).arrangedSubviews.count >= 2) row = (UIStackView *)v;
-    });
+    UIStackView *row = SGRowIn(host);
     if (!row) return;
     [row layoutIfNeeded];
     NSUInteger index = 0;
     for (UIView *child in row.arrangedSubviews) {
         CGRect f = SGFrameIn(child, host);
-        if (child.hidden || f.size.width < 20 || f.size.height < 20) continue;
+        if (child.hidden || child.alpha == 0 || f.size.width < 20 || f.size.height < 20) continue;
         __block BOOL skipped = NO;
         if (skip) SGForEachView(child, ^(UIView *v) { if ([NSStringFromClass(v.class) containsString:skip]) skipped = YES; });
         if (skipped) continue;
@@ -30,6 +28,7 @@ static void glassBehindRowChildren(UIViewController *unit, CGFloat minSize, CGFl
         glass.frame = CGRectMake(CGRectGetMidX(f) - width / 2, CGRectGetMidY(f) - height / 2, width, height);
         SGShapeGlass(glass, height / 2, YES);
     }
+    SGHideGlassFrom(host, index);
 }
 
 %hook _TtC20NowPlaying_ModesImpl18HeaderElementsUnit

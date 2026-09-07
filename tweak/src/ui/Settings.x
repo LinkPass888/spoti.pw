@@ -1,6 +1,6 @@
 // Settings: a Mod Settings row at the end of Spotify's settings list opens the mod's own pages,
-// Mod Settings (UI Tweaks, a note about the mod) > UI Tweaks (a switch per tweak). The tweaks
-// read the switches when they run, so a change shows after Spotify restarts.
+// Mod Settings (UI Tweaks, the two Declutter pages, a note about the mod), each a list of
+// switches. The tweaks read the switches when they run, so a change shows after Spotify restarts.
 //
 // Tree (trees/settings.txt): SettingsListViewController.view > SettingsListCollectionView of
 //   Element_List cells 402x56: 24pt icon at x 12, 13pt white title and 11pt grey subtitle at
@@ -53,13 +53,29 @@ static void fitNote(UITableView *table, UIView *wrapper, CGFloat top, CGFloat bo
     else table.tableFooterView = wrapper;
 }
 
+// The now playing bar and the tab bar float over the content, and the safe area does not cover
+// them, so the pages inset themselves by however much of the window the bars take.
+static CGFloat barsHeight(UIView *view) {
+    UIWindow *window = view.window;
+    __block CGFloat top = window.bounds.size.height;
+    SGForEachView(window, ^(UIView *v) {
+        NSString *name = NSStringFromClass(v.class);
+        BOOL bar = [name containsString:@"NowPlaying_BarPageImpl"] || [name isEqualToString:@"_TtC23NavigationUI_TabBarImpl10TabBarView"];
+        if (!bar || v.hidden || v.alpha == 0 || v.bounds.size.height == 0) return;
+        top = MIN(top, SGFrameIn(v, window).origin.y);
+    });
+    return window.bounds.size.height - top;
+}
+
 #pragma mark - pages
 
-// A row is a switch when it has a key, a link to another page when it has a page.
+// A row is a switch when it has a key, a link to another page when it has a page, and a caption
+// over the rows below it when it has neither.
 @interface SGModRow : NSObject
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *subtitle;
 @property (nonatomic, copy) NSString *key;
+@property (nonatomic) BOOL defaultOn;
 @property (nonatomic, copy) UIViewController *(^page)(void);
 @end
 
@@ -71,6 +87,19 @@ static SGModRow *switchRow(NSString *title, NSString *subtitle, NSString *key) {
     row.title = title;
     row.subtitle = subtitle;
     row.key = key;
+    row.defaultOn = YES;
+    return row;
+}
+
+static SGModRow *hideRow(NSString *title, NSString *subtitle, NSString *key) {
+    SGModRow *row = switchRow(title, subtitle, key);
+    row.defaultOn = NO;
+    return row;
+}
+
+static SGModRow *captionRow(NSString *title) {
+    SGModRow *row = [SGModRow new];
+    row.title = title;
     return row;
 }
 
@@ -116,6 +145,17 @@ static SGModRow *pageRow(NSString *title, NSString *subtitle, UIViewController *
     if (_footer) fitNote(self.tableView, _footer, 16, 24);
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UITableView *table = self.tableView;
+    CGFloat bottom = MAX(0, barsHeight(table) - table.safeAreaInsets.bottom);
+    if (table.contentInset.bottom == bottom) return;
+    UIEdgeInsets inset = table.contentInset;
+    inset.bottom = bottom;
+    table.contentInset = inset;
+    table.verticalScrollIndicatorInsets = inset;
+}
+
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
     return (NSInteger)_rows.count;
 }
@@ -124,28 +164,30 @@ static SGModRow *pageRow(NSString *title, NSString *subtitle, UIViewController *
     UITableViewCell *cell = [table dequeueReusableCellWithIdentifier:@"row"]
         ?: [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"row"];
     SGModRow *row = _rows[(NSUInteger)path.row];
+    BOOL caption = !row.key && !row.page;
 
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = row.title;
     content.secondaryText = row.subtitle;
-    content.textProperties.font = titleFont();
-    content.textProperties.color = UIColor.whiteColor;
+    content.textProperties.font = caption ? subtitleFont() : titleFont();
+    content.textProperties.color = caption ? grey() : UIColor.whiteColor;
     content.secondaryTextProperties.font = subtitleFont();
     content.secondaryTextProperties.color = grey();
     content.textToSecondaryTextVerticalPadding = 0;
-    content.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(10, 16, 10, 16);
+    content.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(caption ? 20 : 10, 16, caption ? 4 : 10, 16);
     cell.contentConfiguration = content;
     cell.backgroundColor = UIColor.clearColor;
+    cell.accessoryView = nil;
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
 
     if (row.key) {
         UISwitch *toggle = [UISwitch new];
         toggle.onTintColor = [UIColor colorWithRed:0x1E / 255.0 green:0xD7 / 255.0 blue:0x60 / 255.0 alpha:1];
-        toggle.on = SGEnabled(row.key);
+        toggle.on = SGFlag(row.key, row.defaultOn);
         toggle.tag = path.row;
         [toggle addTarget:self action:@selector(toggled:) forControlEvents:UIControlEventValueChanged];
         cell.accessoryView = toggle;
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    } else {
+    } else if (row.page) {
         cell.accessoryView = symbol(@"chevron.right", 13, UIImageSymbolWeightSemibold, 16);
         cell.selectionStyle = UITableViewCellSelectionStyleDefault;
     }
@@ -174,12 +216,48 @@ static UIViewController *uiTweaksPage(void) {
     ] footer:nil];
 }
 
+static UIViewController *playerDeclutterPage(void) {
+    return [[SGModPage alloc] initWithTitle:@"Declutter the player" intro:@"Switch on what should go from the full screen player. Changes apply after you restart Spotify." rows:@[
+        captionRow(@"BUTTONS"),
+        hideRow(@"Shuffle", @"Left of the playback controls", SGHideShuffle),
+        hideRow(@"Repeat", @"Right of the playback controls", SGHideRepeat),
+        hideRow(@"Connect to a device", @"The speaker and device name in the bottom row", SGHideConnect),
+        hideRow(@"Share", @"The share button in the bottom row", SGHideShare),
+        hideRow(@"Queue", @"The queue button in the bottom row", SGHideQueue),
+        hideRow(@"Add to playlist", @"The plus next to the track title", SGHideAddTo),
+        captionRow(@"UNDER THE ARTWORK"),
+        hideRow(@"Lyrics preview", @"The lyric lines shown under the artwork", SGHideLyricsInline),
+        captionRow(@"CARDS BELOW THE PLAYER"),
+        hideRow(@"Lyrics", @"The lyrics card", SGHideLyricsCard),
+        hideRow(@"About the artist", @"Photo, listeners and biography", SGHideAboutArtist),
+        hideRow(@"Related videos", @"The video carousel", SGHideRelatedVideos),
+        hideRow(@"SongDNA", @"Discover the people behind the song", SGHideSongDNA),
+        hideRow(@"Live events", @"Concerts and tickets", SGHideLiveEvents),
+        hideRow(@"Explore the artist", @"The vertical video cards", SGHideExploreArtist),
+        hideRow(@"Credits", @"Performers and writers", SGHideCredits),
+        hideRow(@"Merch", @"The artist's shop", SGHideMerch),
+        hideRow(@"Recommendations", @"\"Artist: what you might like\", the episode and track rows", SGHideRecommendations),
+    ] footer:nil];
+}
+
+static UIViewController *homeDeclutterPage(void) {
+    return [[SGModPage alloc] initWithTitle:@"Declutter Home" intro:@"Switch on what should go from the Home tab. Changes apply after you restart Spotify." rows:@[
+        hideRow(@"Filter pills", @"Music and Podcasts next to your avatar", SGHideHomePills),
+        hideRow(@"Shortcuts grid", @"The tiles at the top", SGHideHomeShortcuts),
+        hideRow(@"Promo cards", @"Single cards such as the next episode of a podcast", SGHideHomePromo),
+        hideRow(@"Preview cards", @"Album, playlist and video previews with a play button", SGHideHomePreviews),
+        hideRow(@"DJ card", @"Your own personal DJ", SGHideHomeDJ),
+    ] footer:@"The shelves (Your top mixes, Jump back in, Recents and the rest) all share one card type, so they cannot be told apart yet."];
+}
+
 static UIViewController *modSettingsPage(void) {
     NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     NSString *about = [NSString stringWithFormat:@"spotifyglass %s · Spotify %@\n"
                        "Liquid Glass and other UI tweaks for the Spotify iOS app, a Theos tweak injected into the decrypted IPA.", SG_VERSION, spotify];
     return [[SGModPage alloc] initWithTitle:@"Mod Settings" intro:nil rows:@[
         pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
+        pageRow(@"Declutter the player", @"Hide buttons and cards in the full screen player", ^UIViewController *{ return playerDeclutterPage(); }),
+        pageRow(@"Declutter Home", @"Hide sections of the Home tab", ^UIViewController *{ return homeDeclutterPage(); }),
     ] footer:about];
 }
 
@@ -202,7 +280,7 @@ static UIViewController *modSettingsPage(void) {
     _title.text = @"Mod Settings";
     _title.textColor = UIColor.whiteColor;
     _subtitle = [UILabel new];
-    _subtitle.text = @"UI Tweaks";
+    _subtitle.text = @"UI Tweaks • Declutter";
     _subtitle.textColor = grey();
     _chevron = symbol(@"chevron.right", 11, UIImageSymbolWeightSemibold, 12);
     for (UIView *v in @[_icon, _title, _subtitle, _chevron]) [self addSubview:v];
