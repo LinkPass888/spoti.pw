@@ -185,6 +185,21 @@ static SGModRow *pageRow(NSString *title, NSString *subtitle, UIViewController *
     return row;
 }
 
+static SGModRow *linkRow(NSString *title, NSString *subtitle, NSString *url) {
+    return actionRow(title, subtitle, ^{ SGOpenURL(url); });
+}
+
+// A value on the right and a tap: the Updates row reads its status out of SGUpdate.m every tick,
+// and a tap asks the site again instead of waiting for the six hour cache to lapse.
+static SGModRow *statActionRow(NSString *title, NSString *subtitle, NSString *(^value)(void), void (^action)(void)) {
+    SGModRow *row = [SGModRow new];
+    row.title = title;
+    row.subtitle = subtitle;
+    row.value = value;
+    row.action = action;
+    return row;
+}
+
 static SGModSection *section(NSString *title, NSArray<SGModRow *> *rows) {
     SGModSection *s = [SGModSection new];
     s.title = title;
@@ -350,6 +365,7 @@ static UITableViewCell *dequeue(UITableView *table, NSString *identifier) {
         label.text = row.value();
         [label sizeToFit];
         cell.accessoryView = label;
+        cell.selectionStyle = row.action ? UITableViewCellSelectionStyleDefault : UITableViewCellSelectionStyleNone;
     } else if (row.action) {
         cell.selectionStyle = UITableViewCellSelectionStyleDefault;
     }
@@ -975,9 +991,25 @@ static UIViewController *privacyPage(void) {
     ] footer:nil];
 }
 
+// Which build this is, whether the site has a newer one, and where to reach the mod: without these
+// rows a build that is already installed has no way of telling its user that anything moved on.
+static SGModSection *aboutSection(void) {
+    NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"unknown";
+    return section(@"About", @[
+        statRow(@"Version", ^NSString *{ return @(SG_VERSION); }),
+        statRow(@"Spotify", ^NSString *{ return spotify; }),
+        statActionRow(@"Updates", @"Asks the site for the newest build; tap to check now", ^NSString *{
+            return SGUpdateStatus();
+        }, ^{ SGCheckForUpdate(YES); }),
+        linkRow(@"Website", @"Downloads, and the source to add to AltStore or SideStore", SGSiteURL),
+        linkRow(@"GitHub", @"Source, releases and issues", SGRepoURL),
+        linkRow(@"Telegram", @"Updates and support", SGChatURL),
+    ]);
+}
+
 static UIViewController *modSettingsPage(void) {
-    NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-    NSString *about = [NSString stringWithFormat:@"spotifyglass %s · Spotify %@", SG_VERSION, spotify];
+    // Opening the page is the only thing that asks; the cache keeps it to once every six hours.
+    SGCheckForUpdate(NO);
     return [[SGModPage alloc] initWithTitle:@"Mod Settings" intro:nil sections:@[
         section(nil, @[
             pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
@@ -988,7 +1020,8 @@ static UIViewController *modSettingsPage(void) {
             pageRow(@"Privacy", @"Block telemetry, and what it has blocked so far", ^UIViewController *{ return privacyPage(); }),
             pageRow(@"All flags", @"Search and force any of Spotify's remote-config flags", ^UIViewController *{ return [SGFlagsPage new]; }),
         ]),
-    ] footer:about];
+        aboutSection(),
+    ] footer:nil];
 }
 
 #pragma mark - row in the settings list

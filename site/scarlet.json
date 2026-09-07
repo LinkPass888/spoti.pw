@@ -1,0 +1,17 @@
+{
+  "META": {
+    "repoName": "spotifyglass",
+    "repoIcon": "https://spoti.pw/icon.png"
+  },
+  "Tweaked": [
+    {
+      "name": "spotifyglass",
+      "version": "0.14.1-9.1.78",
+      "bundleID": "com.spotify.client2",
+      "down": "https://files.catbox.moe/REPLACE.ipa",
+      "description": "Spotify's own Liquid Glass design, unhidden from its feature flags, plus a pure black AMOLED background, a decluttered player and Home, a tab bar you can reorder or add your own links to, an editor for all of Spotify's internal flags, and telemetry blocking.\n\nPurely cosmetic. It does not unlock Premium.",
+      "icon": "https://spoti.pw/icon.png",
+      "dev": "vojta"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "spotifyglass",
+  "identifier": "pw.spoti.source",
+  "subtitle": "Liquid Glass for Spotify",
+  "website": "https://spoti.pw",
+  "iconURL": "https://spoti.pw/icon.png",
+  "apps": [
+    {
+      "name": "spotifyglass",
+      "bundleIdentifier": "com.spotify.client2",
+      "developerName": "vojta",
+      "subtitle": "Liquid Glass for Spotify",
+      "localizedDescription": "Spotify's own Liquid Glass design, unhidden from its feature flags, plus a pure black AMOLED background, a decluttered player and Home, a tab bar you can reorder or add your own links to, an editor for all of Spotify's internal flags, and telemetry blocking.\n\nPurely cosmetic. It does not unlock Premium.",
+      "iconURL": "https://spoti.pw/icon.png",
+      "tintColor": "1ED760",
+      "screenshotURLs": [
+        "https://spoti.pw/shot-1.png",
+        "https://spoti.pw/shot-2.png",
+        "https://spoti.pw/shot-3.png"
+      ],
+      "versions": [
+        {
+          "version": "0.14.1-9.1.78",
+          "date": "2026-09-07",
+          "localizedDescription": "Adds an About section with the version, an update check and links.",
+          "downloadURL": "https://files.catbox.moe/REPLACE.ipa",
+          "size": 124769128,
+          "minOSVersion": "16.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}

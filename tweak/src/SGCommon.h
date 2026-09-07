@@ -155,6 +155,19 @@ NSArray<NSString *> *SGBlockedLabels(void);
 NSUInteger SGBlockedCount(NSString *label);
 void SGResetBlocked(void);
 
+// The site (SGUpdate.m): where the build points its user, and whether a newer one is out. The
+// status is a string for the Updates row; the page's ticker reads it, so the check needs no
+// callback. SGCheckForUpdate(NO) respects a six hour cache, SGCheckForUpdate(YES) always asks.
+extern NSString *const SGSiteURL;
+extern NSString *const SGRepoURL;
+extern NSString *const SGChatURL;
+extern NSString *const SGUpdateURL;
+NSString *SGUpdateVersion(void);  // nil unless the site has one newer than this build
+NSString *SGUpdateNotes(void);
+NSString *SGUpdateStatus(void);
+void SGCheckForUpdate(BOOL force);
+void SGOpenURL(NSString *url);
+
 // Diagnostics (SGDiagnostics.x)
 BOOL SGIsDebugBuild(void);
 NSString *SGScreenTree(void);
