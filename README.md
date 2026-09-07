@@ -20,3 +20,11 @@ then relaunch Spotify captures them on the Mac; on the phone they are in FLEX â†
 a row to copy it). The first layout of each bar dumps its full view hierarchy in numbered parts, and in a FLEX build every
 time the app goes to the background it dumps the whole visible screen: classes, frames, colours, radii,
 label text and the view controller tree. Open a screen, swipe to the home screen, and the tree is in the log.
+
+## Recording view trees
+
+`./record-trees.py` captures one tree per screen over USB into `trees/<name>.txt`. It lists the
+screens from `trees/screens.txt` with their recorded/missing status, lets you pick some, all, only
+the missing ones, or add a new named screen, then walks you through them: open the screen, swipe
+to the iOS home screen, press Enter. Nothing is overwritten unless you selected it.
+`./record-trees.py --import out/spotifyglass.log name` files an existing capture the same way.

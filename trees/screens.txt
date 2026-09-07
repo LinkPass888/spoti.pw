@@ -1,0 +1,12 @@
+startup | force-quit Spotify and open it again, wait for Home (captures the launch lines)
+home | Home tab
+search | Search tab
+library | Library tab
+create | the + tab
+now-playing | tap the now playing bar to open the full player, wait 2 s
+playlist | open any playlist
+album | open any album
+artist | open any artist page
+queue | open the queue from the player
+lyrics | open the lyrics from the player
+settings | avatar → settings

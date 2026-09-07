@@ -5,3 +5,5 @@ tweak/obj/
 tweak/packages/
 .DS_Store
 .signing.env
+trees/*.txt
+!trees/screens.txt
