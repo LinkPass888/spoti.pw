@@ -64,6 +64,17 @@ BOOL SGFlag(NSString *key, BOOL fallback);
 BOOL SGEnabled(NSString *key);
 void SGSetEnabled(NSString *key, BOOL on);
 
+// Spotify's remote-config flags, generated into SGFlagList.m by scripts/extract-flags.py.
+typedef NS_ENUM(NSInteger, SGFlagType) { SGFlagUnknown, SGFlagBool, SGFlagInt, SGFlagEnum };
+typedef struct { const char *key; SGFlagType type; long value, lower, upper; } SGFlagDef;
+extern const SGFlagDef SGFlagTable[];
+extern const NSUInteger SGFlagCount;
+
+// Overrides from the Flags page, stored under SGFlagOverridePrefix + key; nil keeps Spotify's value.
+extern NSString *const SGFlagOverridePrefix;
+id SGFlagOverride(NSString *key);
+void SGSetFlagOverride(NSString *key, id value);
+
 // Declutter switches from ui/Settings.x, read by ui/Declutter.x; an unset switch is off.
 #define SGHideShuffle @"spotifyglass.hide.shuffle"
 #define SGHideRepeat @"spotifyglass.hide.repeat"

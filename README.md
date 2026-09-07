@@ -7,9 +7,9 @@ signed and installed from the Mac.
 
 ## Layout
 
-    tweak/src/ui/*.x   the tweaks: NowPlayingBar, TabBar, NowPlayingView, SearchField, LiquidGlassFlags, Amoled, Declutter, Repaint, Settings
-    tweak/src/SG*      shared helpers (glass panes, view walking, logging, screen dumps)
-    scripts/           pipeline.sh (build + inject), install.sh (sign + install), record-trees.py, dump-log.sh
+    tweak/src/ui/*.x   the tweaks: NowPlayingBar, TabBar, NowPlayingView, SearchField, Flags, Amoled, Declutter, Repaint, Settings
+    tweak/src/SG*      shared helpers (glass panes, view walking, logging, screen dumps); SGFlagList.m is generated
+    scripts/           pipeline.sh (build + inject), install.sh (sign + install), record-trees.py, dump-log.sh, extract-flags.py
     trees/             recorded view trees, one per screen; the input for every new tweak
     plist/             Info.plist overrides merged into the app (turns UIDesignRequiresCompatibility off)
     vendor/            AutoFLEX deb
@@ -22,10 +22,13 @@ signed and installed from the Mac.
     make install    # build, sign with your certificate, install over USB
     make trees      # record view trees screen by screen (FLEX build open on the phone, USB)
     make log        # stream [spotifyglass] log lines from the phone
+    make flags      # regenerate the flag table in tweak/src/SGFlagList.m from the IPA
 
-In the app, Settings → Mod Settings has a switch per tweak under UI Tweaks, and the two Declutter
-pages hide buttons and cards of the full screen player and sections of Home; a change shows after
-Spotify restarts.
+In the app, Settings → Mod Settings has three pages of switches, UI Tweaks (tab bar, search
+field, Spotify's own glass, AMOLED), Home (hide sections of the Home tab) and Now Playing (glass,
+a few of Spotify's player flags, hide buttons and cards of the full screen player), plus All flags,
+Spotify's remote-config flags with a search field and an Auto / Off / On control per flag (a text
+field for the number and text ones); a change shows after Spotify restarts.
 
 Needs Theos in `~/theos` with an iPhoneOS SDK, Homebrew `make ldid dpkg zsign ideviceinstaller
 libimobiledevice`, and cyan (`uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"`).

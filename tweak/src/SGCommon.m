@@ -55,6 +55,18 @@ void SGSetEnabled(NSString *key, BOOL on) {
     [NSUserDefaults.standardUserDefaults setBool:on forKey:key];
 }
 
+NSString *const SGFlagOverridePrefix = @"spotifyglass.flag.";
+
+id SGFlagOverride(NSString *key) {
+    return [NSUserDefaults.standardUserDefaults objectForKey:[SGFlagOverridePrefix stringByAppendingString:key]];
+}
+
+void SGSetFlagOverride(NSString *key, id value) {
+    key = [SGFlagOverridePrefix stringByAppendingString:key];
+    if (value) [NSUserDefaults.standardUserDefaults setObject:value forKey:key];
+    else [NSUserDefaults.standardUserDefaults removeObjectForKey:key];
+}
+
 #pragma mark - view tree
 
 void SGForEachView(UIView *view, void (^fn)(UIView *)) {
