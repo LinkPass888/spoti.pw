@@ -7,3 +7,4 @@ tweak/packages/
 .signing.env
 trees/*.txt
 !trees/screens.txt
+__pycache__/
