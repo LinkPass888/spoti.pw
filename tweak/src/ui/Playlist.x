@@ -5,11 +5,10 @@
 // controller's: the elements arrive after the page does, and a controller whose own view is not
 // dirty never hears about it, so anything hidden a level up flashes first.
 //
-// Tree (trees/playlist.txt): HeaderContentLayout holds the cover in a ShadowContainer over a block
-// of title, description, the creator row, the length and the button row, a UIStackView of
-// ActionViews -- the video deck, add, download, share and more. Each names itself by what it holds
-// except share and more, which are plain icon buttons and go by their place in the row, more being
-// the last. Find on page and Sort are a header view of their own, over the list.
+// Tree (trees/test-playlist.txt): HeaderContentLayout holds the cover over a block of title,
+// description, the creator row, the length and HeaderActionsRow, a stack of the video deck, add,
+// download, share and more. The header names every one of them with an accessibility identifier,
+// so the switches go by those; the description and the find bar have none and go by class.
 //
 // The header's height is not measured from what it shows: -[SPTFreeTierPlaylistEncoreHeaderViewController
 // update] adds three numbers into a stored fullHeaderHeight and pins headerViewHeightConstraint to
@@ -29,6 +28,15 @@ static UIView *viewNamed(UIView *root, NSString *marker) {
     return found;
 }
 
+// A prefix, not the whole identifier: the download button carries its state in the tail.
+static UIView *identNamed(UIView *root, NSString *ident) {
+    __block UIView *found = nil;
+    SGForEachView(root, ^(UIView *v) {
+        if (!found && [v.accessibilityIdentifier hasPrefix:ident]) found = v;
+    });
+    return found;
+}
+
 // Only ever hides. A switch turned off again shows after Spotify restarts, like every other one.
 static void hide(UIView *view, NSString *key) {
     if (view && SGHidden(key)) view.hidden = YES;
@@ -39,13 +47,6 @@ static UIViewController *playlistHeaderOf(UIView *view) {
     for (UIResponder *r = view; r; r = r.nextResponder) {
         if (![r isKindOfClass:UIViewController.class]) continue;
         return [NSStringFromClass(r.class) containsString:@"FreeTierPlaylist"] ? (UIViewController *)r : nil;
-    }
-    return nil;
-}
-
-static UIView *coverIn(UIView *layout) {
-    for (UIView *v in layout.subviews) {
-        if ([NSStringFromClass(v.class) containsString:@"ShadowContainer"]) return v;
     }
     return nil;
 }
@@ -68,25 +69,21 @@ static void applyColumn(UIView *header) {
     }
 }
 
-// The button row is a real stack view, so a hidden button leaves no gap behind it. Buttons Spotify
-// hides itself stay in the count, so that hiding more never shifts share into its place.
+// The identifier sits on the button, the stack arranges the action around it, so each switch hides
+// the action rather than the button and the row closes up behind it.
 static void applyActions(UIView *header) {
-    __block UIStackView *row = nil;
-    SGForEachView(header, ^(UIView *v) {
-        if (row || ![v isKindOfClass:UIStackView.class]) return;
-        for (UIView *item in ((UIStackView *)v).arrangedSubviews) {
-            if ([NSStringFromClass(item.class) containsString:@"ActionView"]) row = (UIStackView *)v;
+    static const struct { __unsafe_unretained NSString *ident, *key; } buttons[] = {
+        {@"Components.UI.WatchFeedEntityExplorerButton", SGHidePlaylistVideo},
+        {@"Components.UI.AddToButton", SGHidePlaylistAddTo},
+        {@"DownloadButton.Granular", SGHidePlaylistDownload},
+        {@"Components.UI.ShareButton", SGHidePlaylistShare},
+        {@"Components.UI.ContextMenuButton", SGHidePlaylistMore},
+    };
+    UIView *row = identNamed(header, @"HeaderActionsRow");
+    for (UIView *action in row.subviews) {
+        for (size_t i = 0; i < sizeof(buttons) / sizeof(buttons[0]); i++) {
+            if (identNamed(action, buttons[i].ident)) hide(action, buttons[i].key);
         }
-    });
-    NSMutableArray<UIView *> *plain = [NSMutableArray array];
-    for (UIView *action in row.arrangedSubviews) {
-        if (SGHasClass(action, @"WatchFeed")) hide(action, SGHidePlaylistVideo);
-        else if (SGHasClass(action, @"AddToButton")) hide(action, SGHidePlaylistAddTo);
-        else if (SGHasClass(action, @"GranularDownloadButton")) hide(action, SGHidePlaylistDownload);
-        else [plain addObject:action];
-    }
-    for (UIView *action in plain) {
-        hide(action, action == plain.lastObject ? SGHidePlaylistMore : SGHidePlaylistShare);
     }
 }
 
@@ -99,18 +96,22 @@ static void applyFindBar(UIView *header) {
     }
 }
 
-// Takes back the room the hidden cover was measured into: everything beside the cover moves up to
-// where the cover began, and the header's height constraints come down by what that frees. Both
-// numbers are read back from the frames Spotify has just set, so once the header has shrunk the
-// next pass finds nothing left to take and stops. The constraint is only touched when it is the
-// one sizing this layout; otherwise the room stays and the log says why.
+// Takes back the room the hidden cover was measured into. The cover swells to fill whatever the
+// header's height leaves over, so the block below it moves up to where the cover began and the
+// height constraints come down by as much; the cover then has nothing left to swell into.
+//
+// Both numbers are read back from the frames Spotify has just set, so once the header has shrunk
+// the next pass finds nothing to take and stops. The header constraint holds the content layout
+// and the top accessory above it, so it is the taller of the two; if it ever is not, it is not the
+// constraint sizing this layout and nothing is touched -- which is also the brake that stops this
+// shrinking for ever should the header stop following.
 static void collapseCover(UIViewController *headerVC, UIView *layout, UIView *cover) {
-    if (![headerVC respondsToSelector:@selector(headerViewHeightConstraint)]) return;
-    NSLayoutConstraint *height = [headerVC headerViewHeightConstraint];
-    CGFloat full = CGRectGetHeight(layout.bounds);
-    if (fabs(height.constant - full) > 1) {
+    NSLayoutConstraint *height = [headerVC respondsToSelector:@selector(headerViewHeightConstraint)] ? [headerVC headerViewHeightConstraint] : nil;
+    NSLayoutConstraint *guide = [headerVC respondsToSelector:@selector(layoutGuideHeightConstraint)] ? [headerVC layoutGuideHeightConstraint] : nil;
+    CGFloat full = CGRectGetHeight(layout.bounds), before = height.constant;
+    if (before < full) {
         static dispatch_once_t once;
-        dispatch_once(&once, ^{ SGLog(@"playlist header: constraint %.0f does not size the %.0f layout", height.constant, full); });
+        dispatch_once(&once, ^{ SGLog(@"playlist header: %.0f layout, header constraint %.0f, guide %.0f", full, before, guide.constant); });
         return;
     }
 
@@ -127,15 +128,13 @@ static void collapseCover(UIViewController *headerVC, UIView *layout, UIView *co
     for (UIView *v in layout.subviews) {
         if (v != cover && shift > 0) v.frame = CGRectOffset(v.frame, 0, -shift);
     }
-    CGFloat drop = full - (bottom - shift);
-    if (drop < 1) return;
-    height.constant -= drop;
-    if ([headerVC respondsToSelector:@selector(layoutGuideHeightConstraint)]) {
-        NSLayoutConstraint *guide = [headerVC layoutGuideHeightConstraint];
-        if (guide.constant > drop) guide.constant -= drop;
-    }
+
+    CGFloat target = bottom - shift + (before - full);
+    if (target > before - 0.5) return;
+    height.constant = target;
+    if (guide.constant > before - target) guide.constant -= before - target;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ SGLog(@"playlist header: %.0f -> %.0f, cover took %.0f", full, full - drop, drop); });
+    dispatch_once(&once, ^{ SGLog(@"playlist header: layout %.0f, header %.0f -> %.0f, guide %.0f", full, before, target, guide.constant); });
 }
 
 %hook _TtC28EncoreConsumerMobile_BaseKit19HeaderContentLayout
@@ -143,7 +142,7 @@ static void collapseCover(UIViewController *headerVC, UIView *layout, UIView *co
     %orig;
     UIViewController *headerVC = playlistHeaderOf((UIView *)self);
     if (!headerVC) return;
-    UIView *layout = (UIView *)self, *cover = coverIn(layout);
+    UIView *layout = (UIView *)self, *cover = identNamed(layout, @"Components.Header.UI.ArtworkImage");
     hide(cover, SGHidePlaylistArtwork);
     applyColumn(layout);
     applyActions(layout);
@@ -161,14 +160,17 @@ static void collapseCover(UIViewController *headerVC, UIView *layout, UIView *co
 }
 %end
 
+// The pills are a cell of the track list. ListUXPlatform_LayoutKit.ListLayout gives every item its
+// height, so a cell can only close up where the layout asks it how tall it wants to be; if it
+// never asks, the log stays quiet and the pills stay.
 %hook _TtC35ListUXPlatform_FreeTierPlaylistImpl25ElementCollectionViewCell
 - (UICollectionViewLayoutAttributes *)preferredLayoutAttributesFittingAttributes:(UICollectionViewLayoutAttributes *)attributes {
     UICollectionViewLayoutAttributes *result = %orig;
-    if (!SGHidden(SGHidePlaylistPills) || !SGHasClass((UIView *)self, @"CurationActionsToolbar")) return result;
+    if (!SGHidden(SGHidePlaylistPills) || !identNamed((UIView *)self, @"PlaylistCuration.Row.CurationActionsToolbar")) return result;
     result.size = CGSizeMake(result.size.width, 0);
     ((UIView *)self).clipsToBounds = YES;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ SGLog(@"collapsed the curation pills"); });
+    dispatch_once(&once, ^{ SGLog(@"playlist pills: asked for a height, answered 0"); });
     return result;
 }
 %end
