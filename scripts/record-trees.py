@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
 """Record Spotify view trees from the iPhone over USB, one file per screen, into trees/.
 
-    scripts/record-trees.py              # interactive: pick screens, record each, save trees/<name>.txt
-    scripts/record-trees.py --import LOG NAME  # parse an existing capture into trees/NAME.txt
+    scripts/record-trees.py                    # interactive: pick screens, record each, save trees/<name>.txt
+    scripts/record-trees.py --import LOG NAME  # file an old syslog capture as trees/NAME.txt
+    scripts/record-trees.py --url URL          # fetch trees from URL instead of the phone (testing)
 
-The FLEX build of the tweak dumps the visible screen when Spotify goes to the background (and the
-full player once it appears). Screens live in trees/screens.txt as "name | hint"; new ones are added
-from the menu.
+A FLEX build of the tweak serves the visible screen's tree on the phone's loopback port 8085. This
+script opens that port over USB with iproxy and pulls the tree when you press Enter, so Spotify only
+has to show the screen. Screens live in trees/screens.txt as "name | hint".
 """
 import datetime
 import os
 import re
 import subprocess
 import sys
-import threading
+import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TREES = os.path.join(ROOT, "trees")
 SCREENS = os.path.join(TREES, "screens.txt")
+PORT = 8085
 
 DEFAULT_SCREENS = [
-    ("startup", "force-quit Spotify and open it again, wait for Home (captures the launch lines)"),
     ("home", "Home tab"),
     ("search", "Search tab"),
     ("library", "Library tab"),
     ("create", "the + tab"),
-    ("now-playing", "tap the now playing bar to open the full player, wait 2 s"),
+    ("now-playing", "tap the now playing bar to open the full player"),
     ("playlist", "open any playlist"),
     ("album", "open any album"),
     ("artist", "open any artist page"),
@@ -60,8 +61,26 @@ def add_screen(name, hint):
         f.write(f"{name} | {hint}\n")
 
 
-def parse(lines):
-    """Split raw syslog lines into single messages and stitched dumps. Returns (singles, dumps)."""
+def pages_in(text):
+    return sorted(set(PAGE.findall(text)))
+
+
+def describe(text):
+    return f"{text.count(chr(10))} lines, pages: {', '.join(pages_in(text)) or 'none recognised'}"
+
+
+def write_tree(name, text, source, messages=None):
+    path = os.path.join(TREES, f"{name}.txt")
+    with open(path, "w") as f:
+        f.write(f"# screen: {name}\n# recorded: {datetime.datetime.now():%Y-%m-%d %H:%M} via {source}\n# {describe(text)}\n")
+        if messages:
+            f.write("# messages:\n" + "\n".join(messages) + "\n")
+        f.write("# tree:\n" + text + ("" if text.endswith("\n") else "\n"))
+    return path
+
+
+def parse_log(lines):
+    """Old syslog captures: returns (single messages, stitched dumps)."""
     messages, current = [], None
     for raw in lines:
         line = raw.rstrip("\n")
@@ -83,61 +102,13 @@ def parse(lines):
         if index == 1 or not dumps or dumps[-1]["tag"] != tag:
             dumps.append({"tag": tag, "total": total, "parts": {}})
         dumps[-1]["parts"][index] = "\n".join(body)
-    complete = []
-    for d in dumps:
-        got = len(d["parts"])
-        text = "\n".join(d["parts"][i] for i in sorted(d["parts"]))
-        complete.append({"tag": d["tag"], "complete": got == d["total"], "got": got, "total": d["total"], "text": text})
+    complete = [("\n".join(d["parts"][i] for i in sorted(d["parts"]))) for d in dumps if len(d["parts"]) == d["total"]]
     return singles, complete
 
 
-def describe(dump):
-    pages = sorted(set(PAGE.findall(dump["text"])))
-    return f"{dump['tag']}, {dump['text'].count(chr(10))} lines, pages: {', '.join(pages) or 'none recognised'}"
-
-
-def write_tree(name, singles, dump):
-    path = os.path.join(TREES, f"{name}.txt")
-    with open(path, "w") as f:
-        f.write(f"# screen: {name}\n# recorded: {datetime.datetime.now():%Y-%m-%d %H:%M}\n")
-        if dump:
-            f.write(f"# {describe(dump)}\n")
-        if singles:
-            f.write("# messages:\n" + "\n".join(singles) + "\n")
-        if dump:
-            f.write("# tree:\n" + dump["text"] + "\n")
-    return path
-
-
-class Capture:
-    def __init__(self):
-        self.lines = []
-        self.lock = threading.Lock()
-        self.connected = False
-        self.proc = subprocess.Popen(["idevicesyslog", "-p", "Spotify", "-m", "spotifyglass"],
-                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        threading.Thread(target=self._pump, daemon=True).start()
-
-    def _pump(self):
-        for line in self.proc.stdout:
-            if line.startswith("[connected"):
-                self.connected = True
-            elif line.startswith("[disconnected"):
-                self.connected = False
-                print("\n  !! phone disconnected, reconnect the cable", flush=True)
-            with self.lock:
-                self.lines.append(line)
-
-    def mark(self):
-        with self.lock:
-            return len(self.lines)
-
-    def since(self, mark):
-        with self.lock:
-            return self.lines[mark:]
-
-    def stop(self):
-        self.proc.terminate()
+def fetch(url):
+    with urllib.request.urlopen(url, timeout=20) as response:
+        return response.read().decode("utf-8", "replace")
 
 
 def pick(screens):
@@ -181,75 +152,64 @@ def pick(screens):
         print("  didn't understand that")
 
 
-def record(capture, name, hint):
+def record(url, name, hint):
     exists = os.path.exists(os.path.join(TREES, f"{name}.txt"))
     print(f"\n▶ Now recording: {name}{'  (will overwrite)' if exists else ''}")
-    print(f"  {hint}, then swipe up to the iOS home screen so the tree gets sent.")
-    print("  [Enter] save   [r] retry (discard what arrived so far)   [s] skip   [q] quit")
-    mark = capture.mark()
+    print(f"  {hint}. When it is on screen press Enter.   [s] skip   [q] quit")
     while True:
         answer = input("  > ").strip().lower()
         if answer == "q":
             return "quit"
         if answer == "s":
             return "skipped"
-        if answer == "r":
-            mark = capture.mark()
-            print("  buffer cleared, go again")
+        try:
+            text = fetch(url)
+        except Exception as error:
+            print(f"  could not fetch the tree ({error}).")
+            print("  Spotify (the FLEX build) must be open in the foreground, the phone unlocked and on USB. Press Enter to try again.")
             continue
-        singles, dumps = parse(capture.since(mark))
-        done = [d for d in dumps if d["complete"]]
-        partial = [d for d in dumps if not d["complete"]]
-        if done:
-            dump = done[-1]
-            path = write_tree(name, singles, dump)
-            print(f"  saved {os.path.relpath(path, ROOT)}: {describe(dump)}")
-            return "saved"
-        if partial:
-            d = partial[-1]
-            print(f"  a dump is still arriving ({d['got']}/{d['total']} parts), wait a moment and press Enter again")
+        if "== window" not in text:
+            print("  the phone answered but not with a tree, press Enter to try again")
             continue
-        if singles:
-            print(f"  no tree arrived, only {len(singles)} message line(s):")
-            for line in singles[:4]:
-                print("    " + line.splitlines()[0][:110])
-            if input("  save those anyway? [y/N] ").strip().lower() == "y":
-                path = write_tree(name, singles, None)
-                print(f"  saved {os.path.relpath(path, ROOT)}")
-                return "saved"
-            continue
-        if not capture.connected:
-            print("  nothing captured and no phone connected; plug it in, unlock it, then press Enter")
-        else:
-            print("  nothing captured yet. Is Spotify open? Did you swipe to the iOS home screen? Press Enter to check again")
+        path = write_tree(name, text, "usb")
+        print(f"  saved {os.path.relpath(path, ROOT)}: {describe(text)}")
+        return "saved"
 
 
 def main():
-    if len(sys.argv) == 4 and sys.argv[1] == "--import":
-        singles, dumps = parse(open(sys.argv[2], errors="replace"))
-        done = [d for d in dumps if d["complete"]]
-        if not done and not singles:
+    args = sys.argv[1:]
+    if len(args) == 3 and args[0] == "--import":
+        singles, dumps = parse_log(open(args[1], errors="replace"))
+        if not dumps and not singles:
             sys.exit("nothing usable in that log")
-        path = write_tree(sys.argv[3], singles, done[-1] if done else None)
-        print(f"saved {path}" + (f": {describe(done[-1])}" if done else " (messages only)"))
+        path = write_tree(args[2], dumps[-1] if dumps else "", os.path.basename(args[1]), singles)
+        print(f"saved {path}" + (f": {describe(dumps[-1])}" if dumps else " (messages only)"))
         return
-    if len(sys.argv) > 1:
+    url, tunnel = None, None
+    if len(args) == 2 and args[0] == "--url":
+        url = args[1]
+    elif args:
         sys.exit(__doc__)
-    if subprocess.run(["idevice_id", "-l"], capture_output=True, text=True).stdout.strip() == "":
-        sys.exit("no iPhone on USB: plug it in, unlock it, tap Trust if asked, then run again")
+    else:
+        if subprocess.run(["idevice_id", "-l"], capture_output=True, text=True).stdout.strip() == "":
+            sys.exit("no iPhone on USB: plug it in, unlock it, tap Trust if asked, then run again")
+        tunnel = subprocess.Popen(["iproxy", f"{PORT}:{PORT}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        url = f"http://127.0.0.1:{PORT}/tree"
     screens = load_screens()
     chosen = pick(screens)
     if not chosen:
+        if tunnel:
+            tunnel.terminate()
         return
-    capture = Capture()
     try:
         for name, hint in chosen:
-            if record(capture, name, hint) == "quit":
+            if record(url, name, hint) == "quit":
                 break
     except KeyboardInterrupt:
         print()
     finally:
-        capture.stop()
+        if tunnel:
+            tunnel.terminate()
     print("done, trees are in trees/")
 
 

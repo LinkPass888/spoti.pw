@@ -1,5 +1,12 @@
-// Screen dumps for FLEX builds: the visible tree on background, the full player once it appears.
+// Screen dumps for FLEX builds. The tree of the visible screen is served over HTTP on the phone's
+// loopback (fetched from the Mac through `iproxy` over USB), and also logged when the app goes to
+// the background or the full player appears.
 #import "SGCommon.h"
+#import <sys/socket.h>
+#import <netinet/in.h>
+#import <unistd.h>
+
+static const uint16_t kTreePort = 8085;
 
 static NSString *hexColor(CGColorRef color) {
     CGFloat r = 0, g = 0, b = 0, a = 0;
@@ -33,7 +40,7 @@ BOOL SGIsDebugBuild(void) {
     return NSClassFromString(@"FLEXManager") != nil;
 }
 
-void SGDumpScreen(NSString *reason) {
+NSString *SGScreenTree(void) {
     NSMutableString *out = [NSMutableString string];
     UIViewController *root = nil;
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
@@ -48,7 +55,57 @@ void SGDumpScreen(NSString *reason) {
     if ([root respondsToSelector:@selector(_printHierarchy)]) {
         [out appendFormat:@"== view controllers\n%@\n", [root _printHierarchy]];
     }
-    SGLogLong([@"screen dump " stringByAppendingString:reason], out);
+    return out;
+}
+
+void SGDumpScreen(NSString *reason) {
+    SGLogLong([@"screen dump " stringByAppendingString:reason], SGScreenTree());
+}
+
+// GET anything on 127.0.0.1:kTreePort answers with the current screen's tree as text/plain.
+static void sendAll(int client, NSData *data) {
+    const uint8_t *p = data.bytes;
+    size_t left = data.length;
+    while (left > 0) {
+        ssize_t n = send(client, p, left, 0);
+        if (n <= 0) return;
+        p += n;
+        left -= (size_t)n;
+    }
+}
+
+static void startTreeServer(void) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    int yes = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(kTreePort);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0 || listen(fd, 4) != 0) {
+        SGLog(@"tree server: could not listen on %u", kTreePort);
+        close(fd);
+        return;
+    }
+    static dispatch_source_t source;
+    source = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, (uintptr_t)fd, 0, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+    dispatch_source_set_event_handler(source, ^{
+        int client = accept(fd, NULL, NULL);
+        if (client < 0) return;
+        struct timeval timeout = {2, 0};
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        char request[1024];
+        recv(client, request, sizeof(request), 0);
+        __block NSString *body = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{ body = SGScreenTree(); });
+        NSData *data = [body dataUsingEncoding:NSUTF8StringEncoding];
+        NSString *head = [NSString stringWithFormat:@"HTTP/1.0 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %lu\r\nConnection: close\r\n\r\n", (unsigned long)data.length];
+        sendAll(client, [head dataUsingEncoding:NSUTF8StringEncoding]);
+        sendAll(client, data);
+        close(client);
+    });
+    dispatch_resume(source);
+    SGLog(@"tree server on 127.0.0.1:%u; on the Mac: iproxy %u:%u, then GET http://127.0.0.1:%u/tree", kTreePort, kTreePort, kTreePort, kTreePort);
 }
 
 %hook _TtC21NowPlaying_ScrollImpl23NPVScrollViewController
@@ -72,6 +129,7 @@ void SGDumpScreen(NSString *reason) {
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:nil usingBlock:^(NSNotification *note) {
             SGDumpScreen(@"on background");
         }];
+        startTreeServer();
         SGLog(@"debug build: backgrounding the app dumps the visible screen's view tree");
     }
 }

@@ -51,4 +51,5 @@ BOOL SGLooksLikeCard(UIView *view, CGColorRef color);
 
 // Diagnostics (SGDiagnostics.x)
 BOOL SGIsDebugBuild(void);
+NSString *SGScreenTree(void);
 void SGDumpScreen(NSString *reason);
