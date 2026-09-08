@@ -34,11 +34,7 @@ jobs:
         
     - name: Generate empty SGFlagList.m
       run: |
-        cat > tweak/src/SGFlagList.m << 'EOF'
-#include "SGCommon.h"
-const SGFlagDef SGFlagTable[] = {};
-const NSUInteger SGFlagCount = 0;
-EOF
+        printf '%s\n' '#include "SGCommon.h"' 'const SGFlagDef SGFlagTable[] = {};' 'const NSUInteger SGFlagCount = 0;' > tweak/src/SGFlagList.m
         
     - name: Build tweak
       run: |
