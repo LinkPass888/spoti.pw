@@ -146,7 +146,7 @@ static NSDictionary *_translations = nil;
             @"Merch": @"周边商品",
             @"The artist's shop": @"艺术家商店",
             @"Recommendations": @"推荐",
-            @""Artist: what you might like", the episode and track rows": @""艺术家：你可能喜欢的」、剧集和歌曲行",
+            @""Artist: what you might like", the episode and track rows": @""艺术家：你可能喜欢的"、剧集和歌曲行",
             
             // Privacy page
             @"Telemetry": @"遥测",
