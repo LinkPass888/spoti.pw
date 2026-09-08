@@ -15,7 +15,7 @@
     return NO;
 }
 
-+ (NSString *)localize:(NSString *)key {
++ (NSString *)localizedStringForKey:(NSString *)key {
     static NSMutableDictionary *translations = nil;
     
     if (!translations) {
@@ -111,11 +111,6 @@
     }
     
     return translations[key] ?: key;
-}
-
-// Provide wrapper matching header declaration
-+ (NSString *)localizedStringForKey:(NSString *)key {
-    return [self localize:key];
 }
 
 @end
