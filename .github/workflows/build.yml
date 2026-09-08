@@ -1,53 +1,16 @@
-name: Build and Release
+name: Build Tweak
 
 on:
   push:
     branches: [ main, master ]
-    tags:
-      - 'v*'
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      ipa_url:
-        description: 'URL to decrypted Spotify IPA (optional for test builds)'
-        required: false
-        type: string
-      build_type:
-        description: 'Build type'
-        required: true
-        type: choice
-        options:
-          - debug
-          - release
-        default: 'release'
-      upload_artifact:
-        description: 'Upload artifacts (requires IPA)'
-        required: true
-        type: boolean
-        default: true
 
 env:
   THEOS: ${{ github.workspace }}/theos
-  REPO_URL: ${{ github.server_url }}/${{ github.repository }}
 
 jobs:
-  check-inputs:
-    runs-on: ubuntu-latest
-    outputs:
-      has_ipa: ${{ steps.check.outputs.has_ipa }}
-    steps:
-      - id: check
-        run: |
-          if [ -n "${{ github.event.inputs.ipa_url }}" ]; then
-            echo "has_ipa=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_ipa=false" >> $GITHUB_OUTPUT
-          fi
-
-  build-tweak:
+  build:
     runs-on: macos-14
-    needs: check-inputs
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -69,143 +32,24 @@ jobs:
       run: |
         brew install make ldid dpkg
         
-    - name: Build tweak (Debug)
+    - name: Generate empty SGFlagList.m
       run: |
-        gmake clean package
-        echo "TWEAK_PACKAGE=$(ls -t packages/*.deb | head -1)" >> $GITHUB_ENV
-      env:
-        THEOS: ${{ github.workspace }}/theos
-        FINALPACKAGE: 0
-      working-directory: ${{ github.workspace }}/tweak
-      
-    - name: Upload dylib artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: spotifyglass-tweak
-        path: ${{ github.workspace }}/tweak/packages/*.deb
-        retention-days: 7
-        
-    - name: Extract version from control
-      id: version
-      run: |
-        VERSION=$(grep "^Version:" tweak/control | cut -d' ' -f2)
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        
-    - name: Create release notes
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        cat > /tmp/release_notes.md << EOF
-        ## spoti.pw ${{ steps.version.outputs.version }}
-        
-        ### 汉化版特性
-        - ✅ 完整中文界面
-        - ✅ 本地化支持（自动检测系统语言）
-        - ✅ 简化构建流程
-        
-        ### 安装说明
-        1. 下载 .deb 文件
-        2. 提取其中的 dylib 文件
-        3. 使用 cyan 注入到解密的 Spotify IPA
-        4. 签名并安装
-        
-        ### 变更日志
-        Automated build from commit ${{ github.sha }}
-        
-        ### 注意事项
-        - 需要已解密的 Spotify IPA
-        - 需要有效的 Apple 开发者证书进行签名
-        - 仅支持 iOS 16.0+ ARM64 设备
-        EOF
-        
-    - name: Publish Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ${{ github.workspace }}/tweak/packages/*.deb
-        body_path: /tmp/release_notes.md
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-ipa:
-    runs-on: macos-14
-    needs: check-inputs
-    if: needs.check-inputs.outputs.has_ipa == 'true' || github.event_name == 'workflow_dispatch'
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Setup Theos
-      uses: actions/checkout@v4
-      with:
-        repository: theos/theos
-        path: theos
-        submodules: recursive
-        
-    - name: Setup Theos SDK
-      run: |
-        if [ ! -d "$THEOS/sdks" ]; then
-          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks
-        fi
-        
-    - name: Install dependencies
-      run: |
-        brew install make ldid dpkg zsign libimobiledevice
-        pip3 install uv
-        uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"
-        
-    - name: Download Spotify IPA
-      if: ${{ github.event.inputs.ipa_url != '' }}
-      run: |
-        mkdir -p ipa
-        curl -L "${{ github.event.inputs.ipa_url }}" -o ipa/spotify.ipa
-        echo "Downloaded IPA:"
-        ls -lh ipa/
-        
-    - name: Check for IPA file
-      run: |
-        IPA_COUNT=$(find ipa -name "*.ipa" | wc -l)
-        if [ "$IPA_COUNT" -eq 0 ]; then
-          echo "::error::No IPA file found in ipa/ directory"
-          echo "Please either:"
-          echo "1. Upload IPA to ipa/ folder in repository"
-          echo "2. Provide ipa_url in workflow_dispatch"
-          exit 1
-        fi
-        echo "Found IPA files:"
-        find ipa -name "*.ipa" -exec ls -lh {} \;
+        cat > tweak/src/SGFlagList.m << 'EOF'
+#include "SGCommon.h"
+const SGFlagDef SGFlagTable[] = {};
+const NSUInteger SGFlagCount = 0;
+EOF
         
     - name: Build tweak
       run: |
         gmake clean package
       env:
-        THEOS: ${{ github.workspace }}/theos
-      working-directory: ${{ github.workspace }}/tweak
+        FINALPACKAGE: 0
+      working-directory: tweak
       
-    - name: Build full IPA
-      run: |
-        IPA_FILE=$(find ipa -name "*.ipa" | head -1)
-        echo "Using IPA: $IPA_FILE"
-        ./scripts/pipeline.sh "$IPA_FILE" --no-flex -o out/Spotify-glass.ipa
-      env:
-        THEOS: ${{ github.workspace }}/theos
-      working-directory: ${{ github.workspace }}
-      
-    - name: Upload IPA artifact
+    - name: Upload dylib artifact
       uses: actions/upload-artifact@v4
-      if: ${{ github.event.inputs.upload_artifact == 'true' || github.event_name == 'workflow_dispatch' }}
       with:
-        name: Spotify-glass-IPA
-        path: ${{ github.workspace }}/out/*.ipa
+        name: spotifyglass-tweak
+        path: tweak/packages/*.deb
         retention-days: 7
-        
-    - name: Create Release (with IPA)
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          ${{ github.workspace }}/out/*.ipa
-          ${{ github.workspace }}/tweak/packages/*.deb
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
