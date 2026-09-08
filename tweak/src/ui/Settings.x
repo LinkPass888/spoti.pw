@@ -1003,7 +1003,7 @@ static SGModSection *aboutSection(void) {
         }, ^{ SGCheckForUpdate(YES); }),
         linkRow(@"官方网站", @"插件下载地址，以及可供 AltStore 或 SideStore 订阅的源", SGSiteURL),
         linkRow(@"GitHub", @"源代码、版本发布与问题反馈", SGRepoURL),
-        linkRow(@"Telegram", @"更新通知与交流支持群组", SGChatURL),
+        linkRow(@"汉化", @"@Linkpass888", @"https://github.com/LinkPass888/spoti.pw"),
     ]);
 }
 
@@ -1018,7 +1018,6 @@ static UIViewController *modSettingsPage(void) {
             pageRow(@"播放列表", @"精简封面、头部按钮及选项标签", ^UIViewController *{ return playlistPage(); }),
             pageRow(@"正在播放", @"流体眩光、实验性功能标志、隐藏多余卡片", ^UIViewController *{ return nowPlayingPage(); }),
             pageRow(@"隐私保护", @"拦截数据收集统计与查看拦截记录", ^UIViewController *{ return privacyPage(); }),
-            pageRow(@"全部功能标志", @"搜索并强制开启 Spotify 的任何隐藏远程配置标志", ^UIViewController *{ return [SGFlagsPage new]; }),
         ]),
         aboutSection(),
     ] footer:nil];
@@ -1043,7 +1042,7 @@ static UIViewController *modSettingsPage(void) {
     _title.text = @"模组设置";
     _title.textColor = UIColor.whiteColor;
     _subtitle = [UILabel new];
-    _subtitle.text = @"界面优化 • 导航栏 • 主页 • 播放列表 • 正在播放 • 隐私保护 • 全部功能标志";
+    _subtitle.text = @"界面优化 • 导航栏 • 主页 • 播放列表 • 正在播放 • 隐私保护";
     _subtitle.textColor = grey();
     // One page too many for the row on a narrow phone.
     _subtitle.adjustsFontSizeToFitWidth = YES;
