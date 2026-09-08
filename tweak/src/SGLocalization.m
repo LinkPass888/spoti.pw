@@ -8,111 +8,106 @@
 @implementation SGLocalization
 
 + (BOOL)isChinese {
-    NSString *lang = [[NSLocale currentLocale] objectForKey:NSLocalePreferredLanguages];
-    if ([lang count] > 0 && [[lang objectAtIndex:0] hasPrefix:@"zh"]) {
+    NSArray *languages = [[NSLocale preferredLanguages] arrayByAddingObjectsFromArray:@[]];
+    if ([languages count] > 0 && [[languages objectAtIndex:0] hasPrefix:@"zh"]) {
         return YES;
     }
     return NO;
 }
 
 + (NSString *)localize:(NSString *)key {
-    // Simple fallback to English for now
-    // In the future, this could be extended with full translation table
     static NSMutableDictionary *translations = nil;
     
     if (!translations) {
         translations = [NSMutableDictionary dictionary];
         
-        // Main menu
-        [translations setObject:@""主菜单"" forKey:@@"Main Menu"];
-        [translations setObject:@""Home" forKey:@@"Home"];
-        [translations setObject:@""Search" forKey:@@"Search"];
-        [translations setObject:@""Library" forKey:@@"Library"];
-        [translations setObject:@""Playlists" forKey:@@"Playlists"];
-        
-        // Page titles
-        [translations setObject:@""UI Tweaks" forKey:@@"UI Tweaks"];
-        [translations setObject:@""Navbar" forKey:@@"Navbar"];
-        [translations setObject:@""Home" forKey:@@"Home"];
-        [translations setObject:@""Playlist" forKey:@@"Playlist"];
-        [translations setObject:@""Now Playing" forKey:@@"Now Playing"];
-        [translations setObject:@""Privacy" forKey:@@"Privacy"];
+        // Main menu & page titles
+        [translations setObject:@"主菜单" forKey:@"Main Menu"];
+        [translations setObject:@"首页" forKey:@"Home"];
+        [translations setObject:@"搜索" forKey:@"Search"];
+        [translations setObject:@"音乐库" forKey:@"Library"];
+        [translations setObject:@"播放列表" forKey:@"Playlists"];
+        [translations setObject:@"UI 调整" forKey:@"UI Tweaks"];
+        [translations setObject:@"导航栏" forKey:@"Navbar"];
+        [translations setObject:@"播放列表" forKey:@"Playlist"];
+        [translations setObject:@"正在播放" forKey:@"Now Playing"];
+        [translations setObject:@"隐私" forKey:@"Privacy"];
         
         // UI Tweaks section
-        [translations setObject:@""Glass on tab bar" forKey:@@"Glass on tab bar"];
-        [translations setObject:@""Glass on player" forKey:@@"Glass on player"];
-        [translations setObject:@""Glass on search field" forKey:@@"Glass on search field"];
-        [translations setObject:@""AMOLED black theme" forKey:@@"AMOLED black theme"];
-        [translations setObject:@""Home gradient" forKey:@@"Home gradient"];
-        [translations setObject:@""Hide sections" forKey:@@"Hide sections"];
-        [translations setObject:@""Telemetry blocking" forKey:@@"Telemetry blocking"];
-        [translations setObject:@""Reorder tabs" forKey:@@"Reorder tabs"];
-        [translations setObject:@""Remote-config flags" forKey:@@"Remote-config flags"];
+        [translations setObject:@"标签栏毛玻璃效果" forKey:@"Glass on tab bar"];
+        [translations setObject:@"播放器毛玻璃效果" forKey:@"Glass on player"];
+        [translations setObject:@"搜索框毛玻璃效果" forKey:@"Glass on search field"];
+        [translations setObject:@"AMOLED 黑色主题" forKey:@"AMOLED black theme"];
+        [translations setObject:@"首页渐变背景" forKey:@"Home gradient"];
+        [translations setObject:@"隐藏区块" forKey:@"Hide sections"];
+        [translations setObject:@"阻止遥测数据" forKey:@"Telemetry blocking"];
+        [translations setObject:@"重排标签" forKey:@"Reorder tabs"];
+        [translations setObject:@"远程配置标志" forKey:@"Remote-config flags"];
         
         // Navbar section
-        [translations setObject:@""Reorder the tabs" forKey:@@"Reorder the tabs"];
-        [translations setObject:@""Hide them" forKey:@@"Hide them"];
-        [translations setObject:@""Add your own" forKey:@@"Add your own"];
+        [translations setObject:@"重排标签页" forKey:@"Reorder the tabs"];
+        [translations setObject:@"隐藏它们" forKey:@"Hide them"];
+        [translations setObject:@"添加自定义项" forKey:@"Add your own"];
         
         // Home section
-        [translations setObject:@""Gradient background" forKey:@@"Gradient background"];
-        [translations setObject:@""Hide sections of the Home tab" forKey:@@"Hide sections of the Home tab"];
+        [translations setObject:@"渐变背景" forKey:@"Gradient background"];
+        [translations setObject:@"隐藏首页的区块" forKey:@"Hide sections of the Home tab"];
         
         // Playlist section
-        [translations setObject:@""Hide the cover" forKey:@@"Hide the cover"];
-        [translations setObject:@""The header buttons" forKey:@@"The header buttons"];
-        [translations setObject:@""And the pills" forKey:@@"And the pills"];
+        [translations setObject:@"隐藏封面" forKey:@"Hide the cover"];
+        [translations setObject:@"隐藏头部按钮" forKey:@"The header buttons"];
+        [translations setObject:@"以及标签" forKey:@"And the pills"];
         
         // Now Playing section
-        [translations setObject:@""Glass" forKey:@@"Glass"];
-        [translations setObject:@""Spotify's player flags" forKey:@@"Spotify's player flags"];
-        [translations setObject:@""Hide buttons and cards" forKey:@@"Hide buttons and cards"];
+        [translations setObject:@"毛玻璃效果" forKey:@"Glass"];
+        [translations setObject:@"Spotify 播放器标志" forKey:@"Spotify's player flags"];
+        [translations setObject:@"隐藏按钮和卡片" forKey:@"Hide buttons and cards"];
         
         // Privacy section
-        [translations setObject:@""Block telemetry" forKey:@@"Block telemetry"];
-        [translations setObject:@""And what it has blocked so far" forKey:@@"And what it has blocked so far"];
+        [translations setObject:@"阻止遥测数据" forKey:@"Block telemetry"];
+        [translations setObject:@"以及已阻止的内容" forKey:@"And what it has blocked so far"];
         
         // Common strings
-        [translations setObject:@""Settings" forKey:@@"Settings"];
-        [translations setObject:@""Enabled" forKey:@@"Enabled"];
-        [translations setObject:@""Disabled" forKey:@@"Disabled"];
-        [translations setObject:@""On" forKey:@@"On"];
-        [translations setObject:@""Off" forKey:@@"Off"];
-        [translations setObject:@""Save" forKey:@@"Save"];
-        [translations setObject:@""Cancel" forKey:@@"Cancel"];
-        [translations setObject:@""Apply" forKey:@@"Apply"];
-        [translations setObject:@""Restart required" forKey:@@"Restart required"];
-        [translations setObject:@""Restart Spotify to apply changes" forKey:@@"Restart Spotify to apply changes"];
+        [translations setObject:@"设置" forKey:@"Settings"];
+        [translations setObject:@"已启用" forKey:@"Enabled"];
+        [translations setObject:@"已禁用" forKey:@"Disabled"];
+        [translations setObject:@"开" forKey:@"On"];
+        [translations setObject:@"关" forKey:@"Off"];
+        [translations setObject:@"保存" forKey:@"Save"];
+        [translations setObject:@"取消" forKey:@"Cancel"];
+        [translations setObject:@"应用" forKey:@"Apply"];
+        [translations setObject:@"需要重启" forKey:@"Restart required"];
+        [translations setObject:@"重启 Spotify 以应用更改" forKey:@"Restart Spotify to apply changes"];
         
         // Artist info
-        [translations setObject:@""Artist" forKey:@@"Artist"];
-        [translations setObject:@""Album" forKey:@@"Album"];
-        [translations setObject:@""Track" forKey:@@"Track"];
-        [translations setObject:@""Duration" forKey:@@"Duration"];
-        [translations setObject:@""Released" forKey:@@"Released"];
-        [translations setObject:@""Performers and writers" forKey:@@"表演者和词曲作者"];
-        [translations setObject:@""Merch" forKey:@@"周边商品"];
-        [translations setObject:@""The artist's shop" forKey:@@"艺术家商店"];
-        [translations setObject:@""Recommendations" forKey:@@"推荐"];
+        [translations setObject:@"艺术家" forKey:@"Artist"];
+        [translations setObject:@"专辑" forKey:@"Album"];
+        [translations setObject:@"曲目" forKey:@"Track"];
+        [translations setObject:@"时长" forKey:@"Duration"];
+        [translations setObject:@"发行日期" forKey:@"Released"];
+        [translations setObject:@"表演者和词曲作者" forKey:@"Performers and writers"];
+        [translations setObject:@"周边商品" forKey:@"Merch"];
+        [translations setObject:@"艺术家商店" forKey:@"The artist's shop"];
+        [translations setObject:@"推荐" forKey:@"Recommendations"];
         
         // Actions
-        [translations setObject:@""Share" forKey:@@"分享"];
-        [translations setObject:@""Like" forKey:@@"喜欢"];
-        [translations setObject:@""Dislike" forKey:@@"不喜欢"];
-        [translations setObject:@""Follow" forKey:@@"关注"];
-        [translations setObject:@""Unfollow" forKey:@@"取消关注"];
+        [translations setObject:@"分享" forKey:@"Share"];
+        [translations setObject:@"喜欢" forKey:@"Like"];
+        [translations setObject:@"不喜欢" forKey:@"Dislike"];
+        [translations setObject:@"关注" forKey:@"Follow"];
+        [translations setObject:@"取消关注" forKey:@"Unfollow"];
         
         // Alerts
-        [translations setObject:@""Success" forKey:@@"成功"];
-        [translations setObject:@""Error" forKey:@@"错误"];
-        [translations setObject:@""Warning" forKey:@@"警告"];
-        [translations setObject:@""Are you sure?" forKey:@@"您确定吗？"];
-        [translations setObject:@""This will restart Spotify" forKey:@@"这将重启 Spotify"];
+        [translations setObject:@"成功" forKey:@"Success"];
+        [translations setObject:@"错误" forKey:@"Error"];
+        [translations setObject:@"警告" forKey:@"Warning"];
+        [translations setObject:@"您确定吗？" forKey:@"Are you sure?"];
+        [translations setObject:@"这将重启 Spotify" forKey:@"This will restart Spotify"];
         
         // Debug
-        [translations setObject:@""Debug" forKey:@@"调试"];
-        [translations setObject:@""View trees" forKey:@@"查看视图树"];
-        [translations setObject:@""Log" forKey:@@"日志"];
+        [translations setObject:@"调试" forKey:@"Debug"];
+        [translations setObject:@"查看视图树" forKey:@"View trees"];
+        [translations setObject:@"日志" forKey:@"Log"];
     }
     
     return translations[key] ?: key;
