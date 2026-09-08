@@ -137,7 +137,6 @@ extern NSString *const SGStrNotChecked;
 @interface SGLocalization : NSObject
 
 + (NSString *)localizedStringForKey:(NSString *)key;
-+ (BOOL)isChinese;
 
 @end
 

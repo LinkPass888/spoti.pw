@@ -872,100 +872,100 @@ static void appendTab(NSDictionary *tab) {
 
 @end
 
-static NSString *const kRestart = @"Changes apply after you restart Spotify.";
+static NSString *const kRestart = @"更改需要在重启 Spotify 后生效。";
 
 static UIViewController *uiTweaksPage(void) {
-    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"UI Tweaks") intro:kRestart sections:@[
-        section(@"Liquid Glass", @[
-            switchRow(@"Tab bar", @"Glass pill behind the tabs, no labels", SGKeyTabBar),
-            switchRow(@"Search field", @"Glass capsule instead of the white field", SGKeySearchField),
-            switchRow(@"Spotify's own Liquid Glass", @"Turns on the glass navigation bar Spotify ships switched off", SGKeySpotifyGlass),
+    return [[SGModPage alloc] initWithTitle:@"UI 调整" intro:kRestart sections:@[
+        section(@"毛玻璃效果", @[
+            switchRow(@"标签栏", @"标签后面的胶囊，无文字", SGKeyTabBar),
+            switchRow(@"搜索框", @"白色字段换成胶囊", SGKeySearchField),
+            switchRow(@"Spotify 原生毛玻璃", @"开启 Spotify 自带的毛玻璃导航栏", SGKeySpotifyGlass),
         ]),
-        section(@"Theme", @[
-            switchRow(@"AMOLED background", @"Pure black instead of Spotify's dark grey", SGKeyAmoled),
+        section(@"主题", @[
+            switchRow(@"AMOLED 黑色背景", @"纯黑代替 Spotify 的深灰色", SGKeyAmoled),
         ]),
     ] footer:nil];
 }
 
 static UIViewController *homePage(void) {
-    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Home") intro:kRestart sections:@[
-        section(@"Background", @[
-            optionRow(@"Gradient", @"A green wash behind the top of the page, fading into the background", SGKeyHomeGradient),
+    return [[SGModPage alloc] initWithTitle:@"首页" intro:kRestart sections:@[
+        section(@"背景", @[
+            optionRow(@"渐变", @"页面顶部绿色渐变，融入背景", SGKeyHomeGradient),
         ]),
-        section(@"Hide", @[
-            hideRow(@"Filter pills", @"Music and Podcasts next to your avatar", SGHideHomePills),
-            hideRow(@"Shortcuts grid", @"The tiles at the top", SGHideHomeShortcuts),
-            hideRow(@"Promo cards", @"Single cards such as the next episode of a podcast", SGHideHomePromo),
-            hideRow(@"Preview cards", @"Album, playlist and video previews with a play button", SGHideHomePreviews),
-            hideRow(@"DJ card", @"Your own personal DJ", SGHideHomeDJ),
+        section(@"隐藏", @[
+            hideRow(@"筛选胶囊", @"头像旁边的音乐和播客", SGHideHomePills),
+            hideRow(@"快捷方式网格", @"顶部的磁贴", SGHideHomeShortcuts),
+            hideRow(@"推广卡片", @"单个卡片如播客的下一集", SGHideHomePromo),
+            hideRow(@"预览卡片", @"带播放按钮的专辑、播放列表和视频预览", SGHideHomePreviews),
+            hideRow(@"DJ 卡片", @"你的个人 DJ", SGHideHomeDJ),
         ]),
     ] footer:nil];
 }
 
 static UIViewController *playlistPage(void) {
-    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Playlist") intro:kRestart sections:@[
-        section(@"Hide in the header", @[
-            hideRow(@"Cover artwork", @"The square cover over the title", SGHidePlaylistArtwork),
-            hideRow(@"Description", @"The text under the title", SGHidePlaylistDescription),
-            hideRow(@"Creator and collaborators", @"The faces, the name and Message", SGHidePlaylistCreator),
-            hideRow(@"Length and saves", @"The line under the creator", SGHidePlaylistLength),
+    return [[SGModPage alloc] initWithTitle:@"播放列表" intro:kRestart sections:@[
+        section(@"隐藏头部", @[
+            hideRow(@"封面图片", @"标题上方的方形封面", SGHidePlaylistArtwork),
+            hideRow(@"描述", @"标题下方的文字", SGHidePlaylistDescription),
+            hideRow(@"创作者和合作者", @"头像、名字和消息", SGHidePlaylistCreator),
+            hideRow(@"长度和收藏数", @"创作者下方的行", SGHidePlaylistLength),
         ]),
-        section(@"Hide header buttons", @[
-            hideRow(@"Video", @"The stack of clips at the start of the row", SGHidePlaylistVideo),
-            hideRow(@"Add to library", @"The plus", SGHidePlaylistAddTo),
-            hideRow(@"Download", @"The download arrow", SGHidePlaylistDownload),
-            hideRow(@"Share", @"The button that opens the share sheet", SGHidePlaylistShare),
-            hideRow(@"More", @"The three dots at the end of the row", SGHidePlaylistMore),
+        section(@"隐藏头部按钮", @[
+            hideRow(@"视频", @"行首的视频堆栈", SGHidePlaylistVideo),
+            hideRow(@"添加到音乐库", @"加号", SGHidePlaylistAddTo),
+            hideRow(@"下载", @"下载箭头", SGHidePlaylistDownload),
+            hideRow(@"分享", @"打开分享表的按钮", SGHidePlaylistShare),
+            hideRow(@"更多", @"行末的三个点", SGHidePlaylistMore),
         ]),
-        section(@"Hide over the tracks", @[
-            hideRow(@"Curation pills", @"Add, Mix, Video, Edit, Sort and the rest", SGHidePlaylistPills),
-            hideRow(@"Find and sort bar", @"Find on page and Sort, under the header", SGHidePlaylistFind),
+        section(@"隐藏曲目上方", @[
+            hideRow(@"精选胶囊", @"添加、混音、视频、编辑、排序等", SGHidePlaylistPills),
+            hideRow(@"查找和排序栏", @"页面内查找和排序，在头部下方", SGHidePlaylistFind),
         ]),
     ] footer:nil];
 }
 
 static UIViewController *nowPlayingPage(void) {
-    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Now Playing") intro:kRestart sections:@[
-        section(@"Liquid Glass", @[
-            switchRow(@"Now playing bar", @"Glass card with round artwork", SGKeyNowPlayingBar),
-            optionRow(@"Artwork background", @"The cover blurred and dimmed behind the player instead of the flat album colour", SGKeyPlayerBackdrop),
-            switchRow(@"Header buttons", @"Glass circles behind close and more, over the artwork", SGKeyPlayer),
-            switchRow(@"Lyrics", @"Glass card, and the page it expands into", SGKeyLyricsCard),
+    return [[SGModPage alloc] initWithTitle:@"正在播放" intro:kRestart sections:@[
+        section(@"毛玻璃效果", @[
+            switchRow(@"正在播放栏", @"带圆形封面的玻璃卡片", SGKeyNowPlayingBar),
+            optionRow(@"封面背景", @"封面模糊暗淡显示在播放器后方", SGKeyPlayerBackdrop),
+            switchRow(@"头部按钮", @"关闭和更多按钮上的玻璃圆圈", SGKeyPlayer),
+            switchRow(@"歌词", @"玻璃卡片和展开的页面", SGKeyLyricsCard),
         ]),
-        section(@"Spotify's flags", @[
-            flagRow(@"Sheet style player", @"ios-feature-nowplaying.sheet_style_npv"),
-            flagRow(@"Queue as a bottom sheet", @"ios-feature-nowplaying.bottom_sheet_queue_enabled"),
-            flagRow(@"Queue flip transition", @"ios-feature-nowplaying.queue_flip_transition_enabled"),
-            flagRow(@"Mini player transition animations", @"ios-feature-nowplaying.miniplayer_transition_animations"),
-            flagRow(@"Bar to cover art animation", @"ios-feature-nowplaying.bartocoverart_animation_enabled"),
-            flagRow(@"White heart button", @"ios-feature-nowplaying.white_heart_button_in_nowplaying_screen"),
-            flagRow(@"Expand the sticky header on tap", @"ios-feature-nowplaying.expand_sticky_header_on_tap"),
-            flagRow(@"Cover art in the header", @"ios-feature-nowplaying.show_header_context_cover_art"),
-            flagRow(@"Redesigned header with context menu", @"ios-feature-nowplaying.new_redesign_header_with_context_menu_enabled"),
-            flagRow(@"Picture in picture", @"ios-feature-nowplaying.picture_in_picture"),
-            flagRow(@"Video in the mini player", @"ios-feature-nowplaying.video_in_miniplayer"),
+        section(@"Spotify 标志", @[
+            flagRow(@"卡片式播放器", @"ios-feature-nowplaying.sheet_style_npv"),
+            flagRow(@"底部弹出演唱队列", @"ios-feature-nowplaying.bottom_sheet_queue_enabled"),
+            flagRow(@"翻转动画", @"ios-feature-nowplaying.queue_flip_transition_enabled"),
+            flagRow(@"迷你播放器过渡动画", @"ios-feature-nowplaying.miniplayer_transition_animations"),
+            flagRow(@"进度条到封面动画", @"ios-feature-nowplaying.bartocoverart_animation_enabled"),
+            flagRow(@"白色心形按钮", @"ios-feature-nowplaying.white_heart_button_in_nowplaying_screen"),
+            flagRow(@"点击展开固定头部", @"ios-feature-nowplaying.expand_sticky_header_on_tap"),
+            flagRow(@"头部显示封面", @"ios-feature-nowplaying.show_header_context_cover_art"),
+            flagRow(@"新设计头部菜单", @"ios-feature-nowplaying.new_redesign_header_with_context_menu_enabled"),
+            flagRow(@"画中画", @"ios-feature-nowplaying.picture_in_picture"),
+            flagRow(@"迷你播放器显示视频", @"ios-feature-nowplaying.video_in_miniplayer"),
         ]),
-        section(@"Hide buttons", @[
-            hideRow(@"Shuffle", @"Left of the playback controls", SGHideShuffle),
-            hideRow(@"Repeat", @"Right of the playback controls", SGHideRepeat),
-            hideRow(@"Connect to a device", @"The speaker and device name in the bottom row", SGHideConnect),
-            hideRow(@"Share", @"The share button in the bottom row", SGHideShare),
-            hideRow(@"Queue", @"The queue button in the bottom row", SGHideQueue),
-            hideRow(@"Add to playlist", @"The plus next to the track title", SGHideAddTo),
+        section(@"隐藏按钮", @[
+            hideRow(@"随机播放", @"播放控制左侧", SGHideShuffle),
+            hideRow(@"循环播放", @"播放控制右侧", SGHideRepeat),
+            hideRow(@"连接设备", @"底部行的扬声器和设备名称", SGHideConnect),
+            hideRow(@"分享", @"底部行的分享按钮", SGHideShare),
+            hideRow(@"播放队列", @"底部行的队列按钮", SGHideQueue),
+            hideRow(@"添加到播放列表", @"曲目标题旁的加号", SGHideAddTo),
         ]),
-        section(@"Under the artwork", @[
-            hideRow(@"Lyrics preview", @"The lyric lines shown under the artwork", SGHideLyricsInline),
+        section(@"封面下方", @[
+            hideRow(@"歌词预览", @"封面下方的歌词行", SGHideLyricsInline),
         ]),
-        section(@"Hide cards below the player", @[
-            hideRow(@"Lyrics", @"The lyrics card", SGHideLyricsCard),
-            hideRow(@"About the artist", @"Photo, listeners and biography", SGHideAboutArtist),
-            hideRow(@"Related videos", @"The video carousel", SGHideRelatedVideos),
-            hideRow(@"SongDNA", @"Discover the people behind the song", SGHideSongDNA),
-            hideRow(@"Live events", @"Concerts and tickets", SGHideLiveEvents),
-            hideRow(@"Explore the artist", @"The vertical video cards", SGHideExploreArtist),
-            hideRow(@"Credits", @"Performers and writers", SGHideCredits),
-            hideRow(@"Merch", @"The artist's shop", SGHideMerch),
-            hideRow(@"Recommendations", @"\"Artist: what you might like\", the episode and track rows", SGHideRecommendations),
+        section(@"隐藏播放器下方卡片", @[
+            hideRow(@"歌词", @"歌词卡片", SGHideLyricsCard),
+            hideRow(@"关于艺人", @"照片、听众数和简介", SGHideAboutArtist),
+            hideRow(@"相关视频", @"视频轮播", SGHideRelatedVideos),
+            hideRow(@"歌曲DNA", @"了解歌曲背后的人", SGHideSongDNA),
+            hideRow(@"现场活动", @"演唱会和门票", SGHideLiveEvents),
+            hideRow(@"探索艺人", @"垂直视频卡片", SGHideExploreArtist),
+            hideRow(@"Credits", @"表演者和词曲作者", SGHideCredits),
+            hideRow(@"周边商品", @"艺人商店", SGHideMerch),
+            hideRow(@"推荐", @"你可能喜欢的艺人、剧集和曲目", SGHideRecommendations),
         ]),
     ] footer:nil];
 }
@@ -980,7 +980,7 @@ static UIViewController *privacyPage(void) {
     [counts addObject:statRow(@"Total", ^NSString *{
         return @(SGBlockedCount(nil)).stringValue;
     })];
-    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Privacy") intro:kRestart sections:@[
+    return [[SGModPage alloc] initWithTitle:@"隐私" intro:kRestart sections:@[
         section(@"Telemetry", @[
             switchRow(@"Block telemetry", @"Answer the analytics endpoints with an empty reply instead of letting the request out", SGKeyBlockTelemetry),
         ]),
@@ -1010,7 +1010,7 @@ static SGModSection *aboutSection(void) {
 static UIViewController *modSettingsPage(void) {
     // Opening the page is the only thing that asks; the cache keeps it to once every six hours.
     SGCheckForUpdate(NO);
-    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Mod Settings") intro:nil sections:@[
+    return [[SGModPage alloc] initWithTitle:@"模组设置" intro:nil sections:@[
         section(nil, @[
             pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
             pageRow(@"Navbar", @"Reorder the tabs, hide them, add your own", ^UIViewController *{ return [SGNavbarPage new]; }),
