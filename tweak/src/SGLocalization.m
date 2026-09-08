@@ -113,4 +113,9 @@
     return translations[key] ?: key;
 }
 
+// Provide wrapper matching header declaration
++ (NSString *)localizedStringForKey:(NSString *)key {
+    return [self localize:key];
+}
+
 @end
