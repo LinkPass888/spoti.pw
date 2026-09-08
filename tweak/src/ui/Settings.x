@@ -995,15 +995,15 @@ static UIViewController *privacyPage(void) {
 // rows a build that is already installed has no way of telling its user that anything moved on.
 static SGModSection *aboutSection(void) {
     NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"unknown";
-    return section(@"About", @[
-        statRow(@"Version", ^NSString *{ return @(SG_VERSION); }),
-        statRow(@"Spotify", ^NSString *{ return spotify; }),
-        statActionRow(@"Updates", @"Asks the site for the newest build; tap to check now", ^NSString *{
+    return section(@"关于", @[
+        statRow(@"插件版本", ^NSString *{ return @(SG_VERSION); }),
+        statRow(@"Spotify 版本", ^NSString *{ return spotify; }),
+        statActionRow(@"检查更新", @"从官方源检查是否有可用新版本，点击立即检查", ^NSString *{
             return SGUpdateStatus();
         }, ^{ SGCheckForUpdate(YES); }),
-        linkRow(@"Website", @"Downloads, and the source to add to AltStore or SideStore", SGSiteURL),
-        linkRow(@"GitHub", @"Source, releases and issues", SGRepoURL),
-        linkRow(@"Telegram", @"Updates and support", SGChatURL),
+        linkRow(@"官方网站", @"插件下载地址，以及可供 AltStore 或 SideStore 订阅的源", SGSiteURL),
+        linkRow(@"GitHub", @"源代码、版本发布与问题反馈", SGRepoURL),
+        linkRow(@"Telegram", @"更新通知与交流支持群组", SGChatURL),
     ]);
 }
 
@@ -1012,13 +1012,13 @@ static UIViewController *modSettingsPage(void) {
     SGCheckForUpdate(NO);
     return [[SGModPage alloc] initWithTitle:@"模组设置" intro:nil sections:@[
         section(nil, @[
-            pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
-            pageRow(@"Navbar", @"Reorder the tabs, hide them, add your own", ^UIViewController *{ return [SGNavbarPage new]; }),
-            pageRow(@"Home", @"Gradient background, hide sections of the Home tab", ^UIViewController *{ return homePage(); }),
-            pageRow(@"Playlist", @"Hide the cover, the header buttons and the pills", ^UIViewController *{ return playlistPage(); }),
-            pageRow(@"Now Playing", @"Glass, Spotify's player flags, hide buttons and cards", ^UIViewController *{ return nowPlayingPage(); }),
-            pageRow(@"Privacy", @"Block telemetry, and what it has blocked so far", ^UIViewController *{ return privacyPage(); }),
-            pageRow(@"All flags", @"Search and force any of Spotify's remote-config flags", ^UIViewController *{ return [SGFlagsPage new]; }),
+            pageRow(@"界面优化", @"流体眩光效果 • AMOLED 纯黑背景", ^UIViewController *{ return uiTweaksPage(); }),
+            pageRow(@"导航栏", @"自定义排序标签页、隐藏不想要的标签、添加自定义链接", ^UIViewController *{ return [SGNavbarPage new]; }),
+            pageRow(@"主页", @"渐变背景，自定义隐藏主页板块", ^UIViewController *{ return homePage(); }),
+            pageRow(@"播放列表", @"精简封面、头部按钮及选项标签", ^UIViewController *{ return playlistPage(); }),
+            pageRow(@"正在播放", @"流体眩光、实验性功能标志、隐藏多余卡片", ^UIViewController *{ return nowPlayingPage(); }),
+            pageRow(@"隐私保护", @"拦截数据收集统计与查看拦截记录", ^UIViewController *{ return privacyPage(); }),
+            pageRow(@"全部功能标志", @"搜索并强制开启 Spotify 的任何隐藏远程配置标志", ^UIViewController *{ return [SGFlagsPage new]; }),
         ]),
         aboutSection(),
     ] footer:nil];
@@ -1040,10 +1040,10 @@ static UIViewController *modSettingsPage(void) {
     if (!(self = [super initWithFrame:frame])) return nil;
     _icon = symbol(@"slider.horizontal.3", 20, UIImageSymbolWeightRegular, 24);
     _title = [UILabel new];
-    _title.text = @"Mod Settings";
+    _title.text = @"模组设置";
     _title.textColor = UIColor.whiteColor;
     _subtitle = [UILabel new];
-    _subtitle.text = @"UI Tweaks • Navbar • Home • Playlist • Now Playing • Privacy • Flags";
+    _subtitle.text = @"界面优化 • 导航栏 • 主页 • 播放列表 • 正在播放 • 隐私保护 • 全部功能标志";
     _subtitle.textColor = grey();
     // One page too many for the row on a narrow phone.
     _subtitle.adjustsFontSizeToFitWidth = YES;
