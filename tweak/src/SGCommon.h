@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <os/log.h>
+#import "SGLocalization.h"
 
 // iOS 26 API, absent from the SDK Theos builds against. Resolved at runtime.
 @interface UIGlassEffect : UIVisualEffect
