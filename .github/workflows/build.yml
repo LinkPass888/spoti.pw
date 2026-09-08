@@ -61,7 +61,9 @@ jobs:
         
     - name: Setup Theos SDK
       run: |
-        git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks
+        if [ ! -d "$THEOS/sdks" ]; then
+          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks
+        fi
         
     - name: Install build dependencies
       run: |
@@ -142,7 +144,9 @@ jobs:
         
     - name: Setup Theos SDK
       run: |
-        git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks
+        if [ ! -d "$THEOS/sdks" ]; then
+          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks
+        fi
         
     - name: Install dependencies
       run: |
