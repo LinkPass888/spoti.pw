@@ -875,7 +875,7 @@ static void appendTab(NSDictionary *tab) {
 static NSString *const kRestart = @"Changes apply after you restart Spotify.";
 
 static UIViewController *uiTweaksPage(void) {
-    return [[SGModPage alloc] initWithTitle:@"UI Tweaks" intro:kRestart sections:@[
+    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"UI Tweaks") intro:kRestart sections:@[
         section(@"Liquid Glass", @[
             switchRow(@"Tab bar", @"Glass pill behind the tabs, no labels", SGKeyTabBar),
             switchRow(@"Search field", @"Glass capsule instead of the white field", SGKeySearchField),
@@ -888,7 +888,7 @@ static UIViewController *uiTweaksPage(void) {
 }
 
 static UIViewController *homePage(void) {
-    return [[SGModPage alloc] initWithTitle:@"Home" intro:kRestart sections:@[
+    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Home") intro:kRestart sections:@[
         section(@"Background", @[
             optionRow(@"Gradient", @"A green wash behind the top of the page, fading into the background", SGKeyHomeGradient),
         ]),
@@ -903,7 +903,7 @@ static UIViewController *homePage(void) {
 }
 
 static UIViewController *playlistPage(void) {
-    return [[SGModPage alloc] initWithTitle:@"Playlist" intro:kRestart sections:@[
+    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Playlist") intro:kRestart sections:@[
         section(@"Hide in the header", @[
             hideRow(@"Cover artwork", @"The square cover over the title", SGHidePlaylistArtwork),
             hideRow(@"Description", @"The text under the title", SGHidePlaylistDescription),
@@ -925,7 +925,7 @@ static UIViewController *playlistPage(void) {
 }
 
 static UIViewController *nowPlayingPage(void) {
-    return [[SGModPage alloc] initWithTitle:@"Now Playing" intro:kRestart sections:@[
+    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Now Playing") intro:kRestart sections:@[
         section(@"Liquid Glass", @[
             switchRow(@"Now playing bar", @"Glass card with round artwork", SGKeyNowPlayingBar),
             optionRow(@"Artwork background", @"The cover blurred and dimmed behind the player instead of the flat album colour", SGKeyPlayerBackdrop),
@@ -980,7 +980,7 @@ static UIViewController *privacyPage(void) {
     [counts addObject:statRow(@"Total", ^NSString *{
         return @(SGBlockedCount(nil)).stringValue;
     })];
-    return [[SGModPage alloc] initWithTitle:@"Privacy" intro:kRestart sections:@[
+    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Privacy") intro:kRestart sections:@[
         section(@"Telemetry", @[
             switchRow(@"Block telemetry", @"Answer the analytics endpoints with an empty reply instead of letting the request out", SGKeyBlockTelemetry),
         ]),
@@ -1010,7 +1010,7 @@ static SGModSection *aboutSection(void) {
 static UIViewController *modSettingsPage(void) {
     // Opening the page is the only thing that asks; the cache keeps it to once every six hours.
     SGCheckForUpdate(NO);
-    return [[SGModPage alloc] initWithTitle:@"Mod Settings" intro:nil sections:@[
+    return [[SGModPage alloc] initWithTitle:SG_LOCALIZE(@"Mod Settings") intro:nil sections:@[
         section(nil, @[
             pageRow(@"UI Tweaks", @"Liquid Glass • AMOLED background", ^UIViewController *{ return uiTweaksPage(); }),
             pageRow(@"Navbar", @"Reorder the tabs, hide them, add your own", ^UIViewController *{ return [SGNavbarPage new]; }),
